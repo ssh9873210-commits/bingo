@@ -74,8 +74,21 @@ body.fit { padding-block: 12px; }
 body.fit .wrap { gap: 10px; }
 body.fit header { align-items: center; }
 body.fit h1 { font-size: clamp(24px, 4vw, 34px); }
-body.fit .sub { margin-top: 2px; font-size: 13px; }
+body.fit .sub { display: none; }
+body.fit .cell { font-size: var(--cell-font, 16px); }
+body.fit .cell.s { font-size: calc(var(--cell-font, 16px) * .86); }
+body.fit .cell.xs { font-size: calc(var(--cell-font, 16px) * .74); }
+body.fit .cell.free { font-size: calc(var(--cell-font, 16px) * 1.1); }
 body.fit .board-foot { margin-top: 10px; }
+body.fit .board-card { padding: clamp(8px, 1.6vw, 16px); }
+body.fit .letters { margin-bottom: 6px; }
+body.fit .letters span { font-size: clamp(20px, 3.4vw, 30px); }
+/* Landscape: title column on the left, board uses the full height */
+body.fit.land .wrap { flex-direction: row; align-items: flex-start; justify-content: center; max-width: none; }
+body.fit.land header { flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 150px; flex: 0 0 150px; padding-top: 8px; }
+body.fit.land .pills { flex-direction: column; align-items: flex-start; }
+body.fit.land .grid { margin: 0; flex: 1 1 auto; }
+body.fit.land header .board-foot { flex-direction: column; align-items: flex-start; margin-top: 8px; gap: 12px; }
 .cell {
   touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   position: relative; aspect-ratio: 1; max-width: 100%; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg);
@@ -551,6 +564,14 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const grid = $("grid");
     const student = !grid.classList.contains("host");
     document.body.classList.toggle("fit", student);
+    const land = student && window.innerWidth >= 700 && window.innerWidth > window.innerHeight * 1.1;
+    document.body.classList.toggle("land", land);
+    // In landscape the score and clear button move to the left column too.
+    const foot = document.querySelector(".board-foot");
+    const footHome = document.querySelector(".board-card");
+    const header = document.querySelector("header");
+    if (land && foot.parentElement !== header) header.appendChild(foot);
+    if (!land && foot.parentElement !== footHome) footHome.appendChild(foot);
     if (!student) { grid.style.maxWidth = ""; return; }
     grid.style.maxWidth = "";
     for (let pass = 0; pass < 2; pass++) {
@@ -561,8 +582,16 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       const bottomPad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
       const availH = window.innerHeight - top - bottomPad - 2;
       const boardSize = Math.max(220, availH - extraV);
-      grid.style.maxWidth = Math.min(680, boardSize + extraH) + "px";
+      let w = boardSize + extraH;
+      if (land) {
+        const wrapW = grid.parentElement.clientWidth;
+        const headW = document.querySelector("header").offsetWidth + 16;
+        w = Math.min(w, wrapW - headW);
+      } else w = Math.min(w, 900, grid.parentElement.clientWidth);
+      grid.style.maxWidth = Math.floor(w) + "px";
     }
+    const cellW = $("board").firstElementChild ? $("board").firstElementChild.offsetWidth : 100;
+    document.body.style.setProperty("--cell-font", Math.max(11, Math.min(24, Math.round(cellW * 0.15))) + "px");
   }
   let fitTimer;
   const refit = () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBoard, 80); };
