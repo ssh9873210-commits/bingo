@@ -39,7 +39,7 @@ begin
   if char_length(n) < 1 or char_length(n) > 10 then
     raise exception '닉네임은 1~10글자로 입력하세요';
   end if;
-  if p_score is null or p_score < -1000 or p_score > 1000 then
+  if p_score is null or p_score < -5000 or p_score > 5000 then
     raise exception '점수가 올바르지 않아요';
   end if;
   k := lower(n);
