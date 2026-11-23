@@ -45,6 +45,12 @@ drop policy if exists "bingo host update" on public.game_state;
 create policy "bingo host update" on public.game_state
   for update to authenticated using (public.is_bingo_host()) with check (public.is_bingo_host());
 
+-- 학생(anon)과 진행자(authenticated)가 테이블을 쓸 수 있게 열어 두기
+grant usage on schema public to anon, authenticated;
+grant select on public.game_state to anon, authenticated;
+grant insert, update on public.game_state to authenticated;
+grant execute on function public.is_bingo_host() to anon, authenticated;
+
 -- 3) 실시간 반영 켜기
 do $$
 begin

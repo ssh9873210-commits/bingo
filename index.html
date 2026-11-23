@@ -437,7 +437,14 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     writing = true;
     const s = pendingState; pendingState = null;
     const { data, error } = await sb.from(TABLE).upsert({ id: ROW_ID, data: s, updated_at: new Date().toISOString() }).select("id");
-    if (error || !data || !data.length) setMsg("학생 화면에 반영하지 못했어요. 진행자 계정이 game_hosts에 등록돼 있는지 확인해 주세요.", true);
+    if (error || !data || !data.length) {
+      const m = error ? [error.code, error.message].filter(Boolean).join(" ") : "저장된 줄 없음";
+      const why = /row-level security|42501|permission denied/i.test(m) ? "진행자 권한이 없어요. game_hosts의 이메일이 로그인 이메일과 같은지, supabase.sql을 다시 실행했는지 확인해 주세요."
+        : /does not exist|42P01|PGRST20[0-9]/i.test(m) ? "Supabase에 game_state 테이블이 없거나 열려 있지 않아요. supabase.sql을 다시 실행해 주세요."
+        : /JWT|token/i.test(m) ? "로그인이 만료됐어요. 로그아웃 후 다시 로그인해 주세요."
+        : "학생 화면에 반영하지 못했어요.";
+      setMsg(why + " (오류: " + m + ")", true);
+    } else if ($("msg").classList.contains("err")) setMsg("");
     writing = false;
     flushWrite();
   }
