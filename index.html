@@ -64,7 +64,7 @@ h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 
 .pill.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
 
 .banner { position: fixed; z-index: 20; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); box-shadow: 0 6px 20px rgba(0,0,0,.15); background: var(--surface); }
-.banner { display: flex; align-items: center; gap: 10px; background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--surface); border: 1px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+.banner { display: block; background: var(--surface); border: 2px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
 .banner b { color: var(--accent); }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; max-width: 680px; width: 100%; margin: 0 auto; }
@@ -94,13 +94,6 @@ body.fit.land .wrap { flex-direction: row; align-items: flex-start; justify-cont
 body.fit.land header { flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 150px; flex: 0 0 150px; padding-top: 8px; }
 body.fit.land .pills { flex-direction: column; align-items: flex-start; }
 body.fit.land .grid { margin: 0; flex: 1 1 auto; }
-.notice { display: none; }
-body.fit .banner { display: none !important; }
-body.fit .notice { display: block; flex: 1 0 100%; order: 3; min-height: 2.9em; font-size: 14px; line-height: 1.45; font-weight: 500; color: var(--ink); border-radius: 10px; padding: 6px 12px; border: 1px solid transparent; }
-body.fit .notice:not(:empty) { background: var(--surface); border-color: var(--accent); }
-body.fit .notice b { color: var(--accent); }
-body.fit.land .notice { flex: 0 0 auto; order: 0; width: 100%; min-height: 0; margin-top: 4px; }
-body.fit.land .notice:empty { display: none; }
 body.fit.land header .board-foot { flex-direction: column; align-items: flex-start; margin-top: 8px; gap: 12px; }
 .cell {
   touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
@@ -200,7 +193,6 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       <span class="pill example" id="phasePill">게임 시작 전</span>
       <span class="pill off" id="livePill">연결 중</span>
     </div>
-    <div class="notice" id="notice" role="status" aria-live="polite"></div>
   </header>
 
   <div class="banner" id="banner" role="status" aria-live="polite" hidden></div>
@@ -304,7 +296,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
   };
   const TABLE = "game_state", ROW_ID = 1;
-  const APP_VERSION = 5;  // raise when the page changes; older open pages reload themselves
+  const APP_VERSION = 6;  // raise when the page changes; older open pages reload themselves
   function reloadIfOutdated(next) {
     const v = next && Number(next.app) || 0;
     if (v <= APP_VERSION) return false;
@@ -449,9 +441,8 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
 
   let bannerTimer;
   function announce(html) {
-    const b = $("banner"), n = $("notice");
-    b.innerHTML = html; b.hidden = false; n.innerHTML = html;
-    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { b.hidden = true; n.innerHTML = ""; }, 6000);
+    const b = $("banner"); b.innerHTML = html; b.hidden = false;
+    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { b.hidden = true; }, 6000);
   }
 
   // Apply a new shared state; tell the student what changed.
@@ -660,7 +651,6 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const footHome = document.querySelector(".board-card");
     const header = document.querySelector("header");
     if (land && foot.parentElement !== header) header.appendChild(foot);
-    header.appendChild($("notice"));
     if (!land && foot.parentElement !== footHome) footHome.appendChild(foot);
     if (!student) { grid.style.maxWidth = ""; return; }
     grid.style.maxWidth = "";
