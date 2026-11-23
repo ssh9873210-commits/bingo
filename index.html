@@ -54,6 +54,12 @@ h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--surface); }
 .pill.example { color: var(--dauber); border-color: var(--dauber); }
+.pill.playing { color: var(--win); border-color: var(--win); }
+.phase-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.phase-now { font-size: 15px; font-weight: 700; }
+.phase-now.ready { color: var(--dauber); }
+.phase-now.playing { color: var(--win); }
+.card.locked .chips, .card.locked .mini-wrap, .card.locked .swap-row { opacity: .45; pointer-events: none; }
 .pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--win); }
 .pill.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
 
@@ -184,7 +190,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       <p class="sub" id="sub">칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!</p>
     </div>
     <div class="pills">
-      <span class="pill example" id="examplePill" hidden>게임 시작 전</span>
+      <span class="pill example" id="phasePill">게임 시작 전</span>
       <span class="pill off" id="livePill">연결 중</span>
     </div>
   </header>
@@ -200,7 +206,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       </div>
       <div class="board-foot">
         <div class="score" id="score"></div>
-        <div class="btns"><button class="b" id="clearBtn" type="button">내 표시 지우기</button></div>
+        <div class="btns"><button class="b primary" id="shuffleBtn" type="button">판 섞기</button><button class="b" id="clearBtn" type="button">내 표시 지우기</button></div>
       </div>
     </section>
 
@@ -222,12 +228,27 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     <div class="host-col" id="hostCol" hidden>
       <div class="host-top"><span id="hostWho"></span><button class="b small" id="logoutBtn" type="button">로그아웃</button></div>
       <section class="card">
+        <h2>게임 진행</h2>
+        <p class="hint" id="phaseHint"></p>
+        <div class="phase-row">
+          <span class="phase-now" id="phaseNow"></span>
+          <button class="b primary" id="goBtn" type="button">게임 시작</button>
+          <button class="b" id="resetBtn" type="button">게임 초기화</button>
+        </div>
+        <div class="confirm" id="resetConfirm" hidden style="margin-top:10px">
+          학생들의 표시, 없앤 칸, 교환이 모두 지워져요.
+          <button class="b small primary" id="resetYes" type="button">초기화</button>
+          <button class="b small" id="resetNo" type="button">취소</button>
+        </div>
+        <p class="msg" id="ctlMsg" style="margin-top:10px"></p>
+      </section>
+      <section class="card" id="removeCard">
         <h2>용어 없애기</h2>
         <p class="hint">누른 용어의 칸이 모든 학생 화면에서 바로 막혀요. 다시 누르면 되살아납니다.</p>
         <div class="chips" id="chips"></div>
       </section>
 
-      <section class="card">
+      <section class="card" id="swapCard">
         <h2>칸 교환</h2>
         <p class="hint">위치 두 곳을 고르고 교환을 누르면 모든 학생 판에서 그 두 칸이 바뀌어요. 표시는 용어를 따라갑니다.</p>
         <div class="mini-wrap" id="mini"></div>
@@ -240,8 +261,8 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       </section>
 
       <section class="card">
-        <h2>새 게임</h2>
-        <p class="hint">용어를 바꾸고 시작하면 모든 학생의 판이 새로 섞이고 표시·없앤 칸·교환이 초기화돼요.</p>
+        <h2>용어 바꾸기</h2>
+        <p class="hint">용어를 바꾸면 게임이 초기화되고 모든 학생의 판이 새 용어로 섞여요.</p>
         <form class="form" id="hostForm">
           <div>
             <label class="f" for="fTitle">빙고 제목</label>
@@ -253,10 +274,10 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
             <div class="count" id="fCount"></div>
           </div>
           <label class="check"><input type="checkbox" id="fFree"> 가운데 칸을 FREE로</label>
-          <button class="b primary" id="startBtn" type="submit">새 게임 시작</button>
+          <button class="b primary" id="startBtn" type="submit">용어 적용</button>
           <div class="confirm" id="confirmRow" hidden>
             진행 중인 게임이 초기화돼요.
-            <button class="b small primary" id="confirmYes" type="button">시작</button>
+            <button class="b small primary" id="confirmYes" type="button">적용</button>
             <button class="b small" id="confirmNo" type="button">취소</button>
           </div>
           <p class="msg" id="msg"></p>
@@ -271,7 +292,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
 <script>
 (() => {
   const DEFAULT = {
-    title: "빙고", free: false, round: 0, removed: [], swaps: [], example: true,
+    title: "빙고", free: false, round: 0, removed: [], swaps: [], example: true, phase: "ready", reset: 0,
     terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
   };
   const TABLE = "game_state", ROW_ID = 1;
@@ -301,6 +322,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     g = g || {};
     return {
       title: g.title || "빙고", free: !!g.free, round: g.round || 0, example: !!g.example,
+      phase: g.phase === "playing" ? "playing" : "ready", reset: g.reset || 0,
       terms: Array.isArray(g.terms) ? g.terms.filter(t => typeof t === "string") : [],
       removed: Array.isArray(g.removed) ? g.removed : [],
       swaps: Array.isArray(g.swaps) ? g.swaps.filter(s => Array.isArray(s) && s.length === 2) : []
@@ -312,17 +334,22 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   // ---- my board (kept only in this browser) ----
   const KEY = "bingo.v3";
   let me = null;
+  // Each set of terms keeps its own saved board, so loading the default
+  // terms for a moment never overwrites the board a student chose.
+  const keyFor = sig => KEY + "." + sig;
   function ensureMine() {
     const sig = gameSig();
     if (!me || me.sig !== sig) {
-      const saved = ls.get(KEY);
-      me = saved && saved.sig === sig ? saved : { sig, seed: Math.floor(Math.random() * 4294967296), marks: [] };
-      ls.set(KEY, me);
+      const saved = ls.get(keyFor(sig));
+      me = saved && saved.sig === sig ? saved : { sig, seed: Math.floor(Math.random() * 4294967296), marks: [], reset: G.reset };
+      if (me.reset !== G.reset) { me.reset = G.reset; me.marks = []; }
+      if (!G.example) ls.set(keyFor(sig), me);
       return true;
     }
+    if (me.reset !== G.reset) { me.reset = G.reset; me.marks = []; lastLines = 0; saveMine(); }
     return false;
   }
-  const saveMine = () => ls.set(KEY, me);
+  const saveMine = () => { if (!G.example) ls.set(keyFor(me.sig), me); };
 
   function layout() {
     const r = rng(me.seed);
@@ -334,16 +361,22 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     G.swaps.forEach(([a, b]) => { if (arr[a] !== null && arr[b] !== null) [arr[a], arr[b]] = [arr[b], arr[a]]; });
     return arr;
   }
+  let lastLines = 0;
   let cells = [];
   const isBlocked = i => cells[i] !== null && G.removed.includes(cells[i]);
   const isOn = i => cells[i] === null || (!isBlocked(i) && me.marks.includes(cells[i]));
   const completed = () => LINES.filter(l => l.every(isOn));
-  let lastLines = 0;
+  const playing = () => G.phase === "playing";
 
   function renderAll(flashIdx) {
     $("title").textContent = G.title;
     document.title = G.title;
-    $("examplePill").hidden = !G.example;
+    const pp = $("phasePill");
+    pp.textContent = playing() ? "게임 중" : "게임 시작 전";
+    pp.className = "pill " + (playing() ? "playing" : "example");
+    $("shuffleBtn").hidden = playing();
+    $("clearBtn").hidden = !playing();
+    $("board").title = playing() ? "" : "게임이 시작되면 칸을 표시할 수 있어요";
     cells = layout();
     const board = $("board");
     if (board.children.length !== 25) {
@@ -383,11 +416,17 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   }
   function toggle(i) {
     if (cells[i] === null || isBlocked(i)) return;
+    if (!playing()) { announce("게임이 시작되면 칸을 표시할 수 있어요. 지금은 <b>판 섞기</b>로 마음에 드는 판을 고르세요."); return; }
     const t = cells[i], k = me.marks.indexOf(t);
     k >= 0 ? me.marks.splice(k, 1) : me.marks.push(t);
     saveMine(); renderAll();
   }
   $("clearBtn").addEventListener("click", () => { me.marks = []; lastLines = 0; saveMine(); renderAll(); });
+  $("shuffleBtn").addEventListener("click", () => {
+    if (playing()) return;
+    me.seed = Math.floor(Math.random() * 4294967296); me.marks = []; lastLines = 0; saveMine(); renderAll();
+    const bd = $("board"); bd.classList.remove("shuffle"); void bd.offsetWidth; bd.classList.add("shuffle");
+  });
 
   let bannerTimer;
   function announce(html) {
@@ -420,7 +459,11 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       const nextCells = layout();
       [...newly, ...back].forEach(t => { const i = nextCells.indexOf(t); if (i >= 0) flash.add(i); });
     } else if (announceChanges && reset && !G.example) {
-      note = "새 게임이 시작됐어요. 판이 새로 섞였습니다.";
+      note = "용어가 바뀌었어요. <b>판 섞기</b>로 마음에 드는 판을 고르세요.";
+    }
+    if (announceChanges && !reset) {
+      if (prev.phase !== "playing" && G.phase === "playing") note = "<b>게임 시작!</b> 이제 판은 바꿀 수 없어요. 칸을 눌러 표시하세요.";
+      else if (G.reset !== prev.reset) note = "게임이 초기화됐어요. 게임이 시작되기 전까지 <b>판 섞기</b>로 판을 바꿀 수 있어요.";
     }
     renderAll(flash);
     if (reset && announceChanges) { const bd = $("board"); bd.classList.remove("shuffle"); void bd.offsetWidth; bd.classList.add("shuffle"); }
@@ -442,7 +485,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       applyState(data.data, announceChanges);
       if (isHost && !$("hostForm").contains(document.activeElement)) fillForm();
     } else {
-      $("sub").textContent = isHost ? "아래에서 용어를 정하고 새 게임을 시작하세요." : "진행자가 아직 게임을 시작하지 않았어요. 지금은 기본 용어로 보여드려요.";
+      $("sub").textContent = isHost ? "오른쪽 용어 바꾸기에서 용어를 정하고 적용하세요." : "진행자가 아직 게임을 시작하지 않았어요. 지금은 기본 용어로 보여드려요.";
     }
   }
 
@@ -465,14 +508,38 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
         : /JWT|token/i.test(m) ? "로그인이 만료됐어요. 로그아웃 후 다시 로그인해 주세요."
         : "학생 화면에 반영하지 못했어요.";
       setMsg(why + " (오류: " + m + ")", true);
-    } else if ($("msg").classList.contains("err")) setMsg("");
+    } else if ($("ctlMsg").classList.contains("err")) setMsg("");
     writing = false;
     flushWrite();
   }
-  function setMsg(t, err) { const m = $("msg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); }
-  const needStart = () => { if (G.example) { setMsg("먼저 아래에서 새 게임을 시작해 주세요.", true); return true; } return false; };
+  function setMsg(t, err) { const m = $("ctlMsg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); }
+  const needStart = () => { if (!playing()) { setMsg("칸 없애기와 교환은 게임을 시작한 뒤에 할 수 있어요.", true); return true; } return false; };
+  function renderPhase() {
+    const on = playing();
+    $("phaseNow").textContent = on ? "● 게임 중" : "● 게임 시작 전";
+    $("phaseNow").className = "phase-now " + (on ? "playing" : "ready");
+    $("phaseHint").textContent = on
+      ? "학생들은 판을 섞을 수 없고, 칸을 눌러 표시해요. 아래에서 칸 없애기와 교환을 할 수 있어요."
+      : "학생들이 판 섞기로 판을 고르는 중이에요. 게임을 시작하면 각자 마지막으로 고른 판으로 고정돼요.";
+    $("goBtn").hidden = on;
+    $("removeCard").classList.toggle("locked", !on);
+    $("swapCard").classList.toggle("locked", !on);
+  }
+  $("goBtn").addEventListener("click", () => {
+    if (playing()) return;
+    pushState({ ...G, phase: "playing" });
+    setMsg("게임을 시작했어요.");
+  });
+  $("resetBtn").addEventListener("click", () => { $("resetConfirm").hidden = false; });
+  $("resetNo").addEventListener("click", () => { $("resetConfirm").hidden = true; });
+  $("resetYes").addEventListener("click", () => {
+    $("resetConfirm").hidden = true; selected = [];
+    pushState({ ...G, phase: "ready", removed: [], swaps: [], reset: (G.reset || 0) + 1 });
+    setMsg("게임을 초기화했어요. 학생들이 다시 판을 섞을 수 있어요.");
+  });
 
   function renderHost() {
+    renderPhase();
     const chips = $("chips");
     chips.innerHTML = "";
     G.terms.forEach(t => {
@@ -542,8 +609,8 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const terms = parseTerms($("fTerms").value), free = $("fFree").checked;
     if (terms.length < (free ? 24 : 25)) return;
     $("confirmRow").hidden = true; selected = [];
-    pushState({ title: $("fTitle").value.trim() || "빙고", terms, free, round: (G.round || 0) + 1, removed: [], swaps: [] });
-    setMsg("새 게임을 시작했어요.");
+    pushState({ title: $("fTitle").value.trim() || "빙고", terms, free, round: (G.round || 0) + 1, removed: [], swaps: [], phase: "ready", reset: (G.reset || 0) + 1 });
+    const m = $("msg"); m.className = "msg"; m.textContent = "용어를 적용했어요. 학생들이 새 판을 섞을 수 있어요.";
   }
   $("hostForm").addEventListener("submit", e => { e.preventDefault(); if (G.example) startGame(); else $("confirmRow").hidden = false; });
   $("confirmYes").addEventListener("click", startGame);
