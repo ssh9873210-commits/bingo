@@ -535,7 +535,16 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     $("loginMsg").textContent = ""; $("loginBtn").disabled = true;
     const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPw").value });
     $("loginBtn").disabled = false;
-    if (error) $("loginMsg").textContent = "로그인하지 못했어요. 이메일과 비밀번호를 확인해 주세요.";
+    if (error) {
+      const m = (error.message || "") + "";
+      const why = /invalid login credentials/i.test(m) ? "이메일 또는 비밀번호가 맞지 않아요."
+        : /email not confirmed/i.test(m) ? "이메일 인증이 안 된 계정이에요. Supabase에서 Auto Confirm으로 다시 만들어 주세요."
+        : /logins are disabled|provider is disabled/i.test(m) ? "Supabase에서 이메일 로그인이 꺼져 있어요. Authentication → Sign In / Providers → Email을 켜 주세요."
+        : /invalid api key|no api key|apikey/i.test(m) ? "config.js의 키가 맞지 않아요. Publishable key를 다시 복사해 주세요."
+        : /fetch|network/i.test(m) ? "Supabase에 연결하지 못했어요. config.js의 주소와 프로젝트 상태를 확인해 주세요."
+        : "로그인하지 못했어요.";
+      $("loginMsg").textContent = why + " (오류: " + (m || error.status || "알 수 없음") + ")";
+    }
   });
   $("logoutBtn").addEventListener("click", () => sb && sb.auth.signOut());
   window.addEventListener("hashchange", async () => { if (sb) { const { data } = await sb.auth.getSession(); showHostUI(data.session); } });
@@ -547,7 +556,9 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     $("sub").textContent = "config.js에 Supabase 주소와 키를 넣으면 진행자의 변경이 실시간으로 반영돼요. 지금은 기본 용어로 보여드려요.";
     return;
   }
-  sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  // Accept a pasted URL with extra paths such as /rest/v1/.
+  const baseUrl = String(cfg.supabaseUrl).trim().replace(/\/(rest|auth|realtime)\/v1.*$/i, "").replace(/\/+$/, "");
+  sb = window.supabase.createClient(baseUrl, String(cfg.supabaseAnonKey).trim());
   sb.auth.onAuthStateChange((_event, session) => showHostUI(session));
   sb.auth.getSession().then(({ data }) => showHostUI(data.session));
 
