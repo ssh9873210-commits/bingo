@@ -30,9 +30,10 @@
 3. (권장) **Authentication → Sign In / Providers**에서 **Allow new users to sign up**을 끕니다. 다른 사람이 계정을 만들 수 없게 됩니다. (꺼 두지 않아도 `game_hosts`에 없는 계정은 게임을 바꿀 수 없어요.)
 
 ### 4. config.js 채우기
-1. **Project Settings → API**(또는 **Data API / API Keys**)에서 **Project URL**과 **anon public** 키를 복사합니다.
-2. `config.js`의 `YOUR-PROJECT...`와 `YOUR-ANON-KEY`를 바꾸고 커밋합니다.
-   - anon 키는 공개돼도 되는 키입니다. **service_role 키는 절대 넣지 마세요.**
+1. **Project Settings → Data API**에서 **Project URL**을 복사합니다.
+2. **Project Settings → API Keys**에서 **Publishable key**(`sb_publishable_...`)를 복사합니다. 화면에 **Legacy API Keys** 탭이 있다면 그 안의 **anon public** 키를 써도 됩니다.
+3. `config.js`의 `YOUR-PROJECT...`와 `YOUR-ANON-KEY`를 바꾸고 커밋합니다.
+   - Publishable(anon) 키는 공개돼도 되는 키입니다. **Secret key(`sb_secret_...`)나 service_role 키는 절대 넣지 마세요.**
 
 ### 5. GitHub Pages로 게시
 1. 저장소 **Settings → Pages**
