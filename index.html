@@ -163,6 +163,23 @@ h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--mute
 .mini.fixed { cursor: not-allowed; opacity: .45; }
 .mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .swap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.shift-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 4px; }
+.shift-list { display: flex; flex-direction: column; gap: 6px; }
+.shift-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.shift-item .lab { width: 30px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.arrow { font: inherit; font-size: 15px; line-height: 1; width: 36px; height: 30px; border-radius: 6px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; padding: 0; }
+.arrow:hover { border-color: var(--accent); color: var(--accent); }
+.arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sub-h { font-size: 13px; font-weight: 700; margin: 16px 0 6px; }
+.cell.slide-r { animation: slideR .45s ease-out; }
+.cell.slide-l { animation: slideL .45s ease-out; }
+.cell.slide-d { animation: slideD .45s ease-out; }
+.cell.slide-u { animation: slideU .45s ease-out; }
+@keyframes slideR { from { transform: translateX(-70%); opacity: .2 } to { transform: none; opacity: 1 } }
+@keyframes slideL { from { transform: translateX(70%); opacity: .2 } to { transform: none; opacity: 1 } }
+@keyframes slideD { from { transform: translateY(-70%); opacity: .2 } to { transform: none; opacity: 1 } }
+@keyframes slideU { from { transform: translateY(70%); opacity: .2 } to { transform: none; opacity: 1 } }
+@media (prefers-reduced-motion: reduce) { .cell.slide-r, .cell.slide-l, .cell.slide-d, .cell.slide-u { animation: none } }
 .history { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
 label.f { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
 input[type=text], textarea { width: 100%; font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
@@ -213,7 +230,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     <div class="host-col" id="loginCol" hidden>
       <section class="card">
         <h2>진행자 로그인</h2>
-        <p class="hint">진행자 계정으로 로그인하면 칸 없애기, 칸 교환, 새 게임을 할 수 있어요.</p>
+        <p class="hint">진행자 계정으로 로그인하면 게임 시작·초기화, 칸 없애기, 칸 교환, 줄 밀기를 할 수 있어요.</p>
         <form class="login" id="loginForm">
           <label class="f" for="lEmail">이메일</label>
           <input type="email" id="lEmail" autocomplete="username" required>
@@ -249,13 +266,21 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       </section>
 
       <section class="card" id="swapCard">
-        <h2>칸 교환</h2>
-        <p class="hint">위치 두 곳을 고르고 교환을 누르면 모든 학생 판에서 그 두 칸이 바뀌어요. 표시는 용어를 따라갑니다.</p>
+        <h2>칸 교환 · 줄 밀기</h2>
+        <p class="hint">모든 학생 판에서 위치가 똑같이 바뀌어요. 표시는 용어를 따라갑니다.</p>
+        <div class="sub-h">칸 교환</div>
         <div class="mini-wrap" id="mini"></div>
         <div class="swap-row">
           <button class="b primary small" id="swapBtn" type="button" disabled>교환</button>
-          <button class="b small" id="undoSwapBtn" type="button" disabled>마지막 교환 되돌리기</button>
           <span class="hint" id="swapSel" style="margin:0"></span>
+        </div>
+        <div class="sub-h">줄 밀기 (한 칸씩, 끝 칸은 반대쪽으로)</div>
+        <div class="shift-grid">
+          <div class="shift-list" id="shiftRows"></div>
+          <div class="shift-list" id="shiftCols"></div>
+        </div>
+        <div class="swap-row">
+          <button class="b small" id="undoSwapBtn" type="button" disabled>마지막 변경 되돌리기</button>
         </div>
         <ol class="history" id="history"></ol>
       </section>
@@ -292,11 +317,11 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
 <script>
 (() => {
   const DEFAULT = {
-    title: "빙고", free: false, round: 0, removed: [], swaps: [], example: true, phase: "ready", reset: 0,
+    title: "빙고", free: false, round: 0, removed: [], moves: [], example: true, phase: "ready", reset: 0,
     terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
   };
   const TABLE = "game_state", ROW_ID = 1;
-  const APP_VERSION = 6;  // raise when the page changes; older open pages reload themselves
+  const APP_VERSION = 7;  // raise when the page changes; older open pages reload themselves
   function reloadIfOutdated(next) {
     const v = next && Number(next.app) || 0;
     if (v <= APP_VERSION) return false;
@@ -336,7 +361,9 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       phase: g.phase === "playing" ? "playing" : "ready", reset: g.reset || 0,
       terms: Array.isArray(g.terms) ? g.terms.filter(t => typeof t === "string") : [],
       removed: Array.isArray(g.removed) ? g.removed : [],
-      swaps: Array.isArray(g.swaps) ? g.swaps.filter(s => Array.isArray(s) && s.length === 2) : []
+      // Position changes in order: {t:"swap",a,b} or {t:"row"|"col",i,d} (d = 1 right/down, -1 left/up).
+      moves: Array.isArray(g.moves) ? g.moves.filter(m => m && (m.t === "swap" || m.t === "row" || m.t === "col"))
+        : Array.isArray(g.swaps) ? g.swaps.filter(s => Array.isArray(s) && s.length === 2).map(([a, b]) => ({ t: "swap", a, b })) : []
     };
   }
   const need = () => G.free ? 24 : 25;
@@ -369,9 +396,26 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const picked = pool.slice(0, need());
     const arr = []; let k = 0;
     for (let i = 0; i < 25; i++) arr.push(G.free && i === 12 ? null : (picked[k++] ?? ""));
-    G.swaps.forEach(([a, b]) => { if (arr[a] !== null && arr[b] !== null) [arr[a], arr[b]] = [arr[b], arr[a]]; });
+    G.moves.forEach(m => applyMove(arr, m));
     return arr;
   }
+  const lineOf = m => [0,1,2,3,4].map(k => m.t === "row" ? m.i * 5 + k : k * 5 + m.i);
+  function applyMove(arr, m) {
+    if (m.t === "swap") {
+      if (arr[m.a] !== null && arr[m.b] !== null) [arr[m.a], arr[m.b]] = [arr[m.b], arr[m.a]];
+      return;
+    }
+    // Rotate the line by one; a FREE cell stays where it is and the others move around it.
+    const idx = lineOf(m).filter(i => arr[i] !== null);
+    const vals = idx.map(i => arr[i]);
+    const rot = m.d > 0 ? [vals[vals.length - 1], ...vals.slice(0, -1)] : [...vals.slice(1), vals[0]];
+    idx.forEach((i, k) => { arr[i] = rot[k]; });
+  }
+  const moveText = m => m.t === "swap" ? pos(m.a) + " ↔ " + pos(m.b)
+    : m.t === "row" ? (m.i + 1) + "행을 " + (m.d > 0 ? "오른쪽" : "왼쪽") + "으로 한 칸"
+    : (m.i + 1) + "열을 " + (m.d > 0 ? "아래" : "위") + "로 한 칸";
+  const moveCells = m => m.t === "swap" ? [m.a, m.b] : lineOf(m);
+  const slideClass = m => m.t === "row" ? (m.d > 0 ? "slide-r" : "slide-l") : m.t === "col" ? (m.d > 0 ? "slide-d" : "slide-u") : "";
   let lastLines = 0;
   let cells = [];
   const isBlocked = i => cells[i] !== null && G.removed.includes(cells[i]);
@@ -379,7 +423,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   const completed = () => LINES.filter(l => l.every(isOn));
   const playing = () => G.phase === "playing";
 
-  function renderAll(flashIdx) {
+  function renderAll(flashIdx, slide) {
     $("title").textContent = G.title;
     document.title = G.title;
     const pp = $("phasePill");
@@ -409,7 +453,8 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       b.disabled = free || blocked;
       b.setAttribute("aria-pressed", String(isOn(i)));
       b.setAttribute("aria-label", pos(i) + " " + term + (blocked ? ", 사용할 수 없음" : isOn(i) ? ", 표시됨" : ""));
-      if (flashIdx && flashIdx.has(i)) { b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
+      if (slide && slide.cells.includes(i) && slide.cls) { void b.offsetWidth; b.classList.add(slide.cls); }
+      else if (flashIdx && flashIdx.has(i)) { b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
     });
     const lines = completed().length;
     const marked = cells.filter((_, i) => isOn(i)).length;
@@ -453,18 +498,21 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const reset = ensureMine();
     if (reset) lastLines = 0;
     const flash = new Set();
-    let note = "";
+    let note = "", slide = null;
     if (announceChanges && !reset) {
       const newly = G.removed.filter(t => !prev.removed.includes(t));
       const back = prev.removed.filter(t => !G.removed.includes(t));
-      if (G.swaps.length > prev.swaps.length) {
-        const [a, b] = G.swaps[G.swaps.length - 1];
-        note = "진행자가 <b>" + pos(a) + "</b> 칸과 <b>" + pos(b) + "</b> 칸을 바꿨어요.";
-        flash.add(a); flash.add(b);
-      } else if (G.swaps.length < prev.swaps.length) {
-        const [a, b] = prev.swaps[prev.swaps.length - 1];
-        note = "진행자가 <b>" + pos(a) + "</b> ↔ <b>" + pos(b) + "</b> 교환을 되돌렸어요.";
-        flash.add(a); flash.add(b);
+      if (G.moves.length > prev.moves.length) {
+        const m = G.moves[G.moves.length - 1];
+        note = m.t === "swap" ? "진행자가 <b>" + pos(m.a) + "</b> 칸과 <b>" + pos(m.b) + "</b> 칸을 바꿨어요."
+          : "진행자가 <b>" + moveText(m) + "</b> 밀었어요.";
+        moveCells(m).forEach(i => flash.add(i));
+        if (m.t !== "swap") slide = { cells: moveCells(m), cls: slideClass(m) };
+      } else if (G.moves.length < prev.moves.length) {
+        const m = prev.moves[prev.moves.length - 1];
+        note = "진행자가 <b>" + moveText(m) + "</b> 변경을 되돌렸어요.";
+        moveCells(m).forEach(i => flash.add(i));
+        if (m.t !== "swap") slide = { cells: moveCells(m), cls: slideClass({ ...m, d: -m.d }) };
       }
       if (newly.length) note = "진행자가 <b>" + newly.map(esc).join(", ") + "</b> 칸을 없앴어요.";
       if (back.length) note = "<b>" + back.map(esc).join(", ") + "</b> 칸을 다시 쓸 수 있어요.";
@@ -477,7 +525,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       if (prev.phase !== "playing" && G.phase === "playing") note = "<b>게임 시작!</b> 이제 판은 바꿀 수 없어요. 칸을 눌러 표시하세요.";
       else if (G.reset !== prev.reset) note = "게임이 초기화됐어요. 게임이 시작되기 전까지 <b>판 섞기</b>로 판을 바꿀 수 있어요.";
     }
-    renderAll(flash);
+    renderAll(flash, slide);
     if (reset && announceChanges) { const bd = $("board"); bd.classList.remove("shuffle"); void bd.offsetWidth; bd.classList.add("shuffle"); }
     if (note) announce(note);
   }
@@ -547,7 +595,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   $("resetNo").addEventListener("click", () => { $("resetConfirm").hidden = true; });
   $("resetYes").addEventListener("click", () => {
     $("resetConfirm").hidden = true; selected = [];
-    pushState({ ...G, phase: "ready", removed: [], swaps: [], reset: (G.reset || 0) + 1 });
+    pushState({ ...G, phase: "ready", removed: [], moves: [], reset: (G.reset || 0) + 1 });
     setMsg("게임을 초기화했어요. 학생들이 다시 판을 섞을 수 있어요.");
   });
 
@@ -592,16 +640,31 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     });
     $("swapBtn").disabled = selected.length !== 2;
     $("swapSel").textContent = selected.length ? selected.map(pos).join(" ↔ ") : "";
-    $("undoSwapBtn").disabled = !G.swaps.length;
+    $("undoSwapBtn").disabled = !G.moves.length;
+    if (!$("shiftRows").children.length) {
+      const mk = (box, t, i, label, dirs) => {
+        const row = document.createElement("div"); row.className = "shift-item";
+        row.appendChild(Object.assign(document.createElement("span"), { className: "lab", textContent: label }));
+        dirs.forEach(([d, sym, name]) => {
+          const a = document.createElement("button");
+          a.type = "button"; a.className = "arrow"; a.textContent = sym; a.setAttribute("aria-label", label + " " + name + "으로 밀기");
+          a.addEventListener("click", () => { if (needStart()) return; pushState({ ...G, moves: [...G.moves, { t, i, d }] }); });
+          row.appendChild(a);
+        });
+        box.appendChild(row);
+      };
+      for (let i = 0; i < 5; i++) mk($("shiftRows"), "row", i, (i + 1) + "행", [[-1, "◀", "왼쪽"], [1, "▶", "오른쪽"]]);
+      for (let i = 0; i < 5; i++) mk($("shiftCols"), "col", i, (i + 1) + "열", [[-1, "▲", "위"], [1, "▼", "아래"]]);
+    }
     const h = $("history"); h.innerHTML = "";
-    G.swaps.forEach(([a, b], n) => { const li = document.createElement("li"); li.textContent = (n + 1) + ". " + pos(a) + " ↔ " + pos(b); h.appendChild(li); });
+    G.moves.forEach((m, n) => { const li = document.createElement("li"); li.textContent = (n + 1) + ". " + moveText(m); h.appendChild(li); });
   }
   $("swapBtn").addEventListener("click", () => {
     if (selected.length !== 2 || needStart()) return;
     const [a, b] = selected; selected = [];
-    pushState({ ...G, swaps: [...G.swaps, [a, b]] });
+    pushState({ ...G, moves: [...G.moves, { t: "swap", a, b }] });
   });
-  $("undoSwapBtn").addEventListener("click", () => { if (G.swaps.length) pushState({ ...G, swaps: G.swaps.slice(0, -1) }); });
+  $("undoSwapBtn").addEventListener("click", () => { if (G.moves.length) pushState({ ...G, moves: G.moves.slice(0, -1) }); });
 
   function parseTerms(text) {
     const seen = new Set(), out = [];
@@ -622,7 +685,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const terms = parseTerms($("fTerms").value), free = $("fFree").checked;
     if (terms.length < (free ? 24 : 25)) return;
     $("confirmRow").hidden = true; selected = [];
-    pushState({ title: $("fTitle").value.trim() || "빙고", terms, free, round: (G.round || 0) + 1, removed: [], swaps: [], phase: "ready", reset: (G.reset || 0) + 1 });
+    pushState({ title: $("fTitle").value.trim() || "빙고", terms, free, round: (G.round || 0) + 1, removed: [], moves: [], phase: "ready", reset: (G.reset || 0) + 1 });
     const m = $("msg"); m.className = "msg"; m.textContent = "용어를 적용했어요. 학생들이 새 판을 섞을 수 있어요.";
   }
   $("hostForm").addEventListener("submit", e => { e.preventDefault(); if (G.example) startGame(); else $("confirmRow").hidden = false; });
