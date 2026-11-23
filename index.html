@@ -3,824 +3,165 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>빙고</title>
+<title>과학 용어 게임</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
 <style>
-html, body { margin: 0; }
-[hidden] { display: none !important; }
-
-/* Layout: the student's board is the hero; the host sees a control column beside it (stacks on phones). */
+/* Layout: one screen, a friendly title and two big game cards side by side (stacked on narrow portrait). */
 :root {
-  --bg: #eef1f6;
+  --bg: #eef3fb;
   --surface: #ffffff;
-  --ink: #1a2140;
-  --muted: #5d6685;
-  --line: #d5dae6;
-  --accent: #2f55d4;
-  --accent-soft: rgba(47, 85, 212, .12);
-  --dauber: #e0306a;
-  --dauber-soft: rgba(224, 48, 106, .22);
-  --win: #0f8a5f;
-  --win-soft: rgba(15, 138, 95, .12);
-  --blocked: #8a90a6;
-  --font-display: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --ink: #1d2546;
+  --muted: #5f6889;
+  --line: #d6ddec;
+  --bingo: #2f55d4;
+  --bingo-soft: #e3e9fb;
+  --word: #ff7a59;
+  --word-soft: #ffe8e1;
+  --danger: #d93a5b;
+  --ok: #138a5e;
+  --font-display: "Jua", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
 }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #121522; --surface: #1b2033; --ink: #e8ebf5; --muted: #9aa3c0; --line: #2e3550;
-    --accent: #7d98ff; --accent-soft: rgba(125, 152, 255, .16); --dauber: #ff5c8f; --dauber-soft: rgba(255, 92, 143, .26);
-    --win: #3fd39b; --win-soft: rgba(63, 211, 155, .14); --blocked: #6b7290; color-scheme: dark;
+  :root {
+    --bg: #121624; --surface: #1c2236; --ink: #e9ecf6; --muted: #9ea7c4; --line: #2f3753;
+    --bingo: #8ea6ff; --bingo-soft: #252f52; --word: #ff9a7f; --word-soft: #3b2a2b;
+    --danger: #ff6f8c; --ok: #45d39e; color-scheme: dark;
   }
 }
-:root[data-theme="dark"] {
-  --bg: #121522; --surface: #1b2033; --ink: #e8ebf5; --muted: #9aa3c0; --line: #2e3550;
-  --accent: #7d98ff; --accent-soft: rgba(125, 152, 255, .16); --dauber: #ff5c8f; --dauber-soft: rgba(255, 92, 143, .26);
-  --win: #3fd39b; --win-soft: rgba(63, 211, 155, .14); --blocked: #6b7290; color-scheme: dark;
-}
 * { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 24px 48px;
+  padding-block: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
-header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
-h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
-.sub { color: var(--muted); margin: 4px 0 0; font-size: 14px; }
-.pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--surface); }
-.pill.example { color: var(--dauber); border-color: var(--dauber); }
-.pill.playing { color: var(--win); border-color: var(--win); }
-.phase-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.phase-now { font-size: 15px; font-weight: 700; }
-.phase-now.ready { color: var(--dauber); }
-.phase-now.playing { color: var(--win); }
-.card.locked .chips, .card.locked .mini-wrap, .card.locked .swap-row { opacity: .45; pointer-events: none; }
-.pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--win); }
-.pill.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
-
-.banner { position: fixed; z-index: 20; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); box-shadow: 0 6px 20px rgba(0,0,0,.15); background: var(--surface); }
-.banner { display: block; background: var(--surface); border: 2px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
-.banner b { color: var(--accent); }
-
-.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; max-width: 680px; width: 100%; margin: 0 auto; }
-.grid.host { grid-template-columns: minmax(0, 1fr) 380px; max-width: none; }
-@media (max-width: 900px) { .grid.host { grid-template-columns: minmax(0, 1fr); } }
-
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
-.board-card { padding: clamp(10px, 2.4vw, 22px); }
-.letters, .board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(4px, 1vw, 8px); }
-.letters { margin-bottom: 8px; }
-.letters span { font-family: var(--font-display); font-size: clamp(22px, 5vw, 36px); text-align: center; color: var(--accent); line-height: 1; }
-body.fit { padding-block: 12px; }
-body.fit .wrap { gap: 10px; }
-body.fit header { align-items: center; }
-body.fit h1 { font-size: clamp(24px, 4vw, 34px); }
-body.fit .sub { display: none; }
-body.fit .cell { font-size: var(--cell-font, 16px); }
-body.fit .cell.s { font-size: calc(var(--cell-font, 16px) * .86); }
-body.fit .cell.xs { font-size: calc(var(--cell-font, 16px) * .74); }
-body.fit .cell.free { font-size: calc(var(--cell-font, 16px) * 1.1); }
-body.fit .board-foot { margin-top: 10px; }
-body.fit .board-card { padding: clamp(8px, 1.6vw, 16px); }
-body.fit .letters { margin-bottom: 6px; }
-body.fit .letters span { font-size: clamp(20px, 3.4vw, 30px); }
-/* Landscape: title column on the left, board uses the full height */
-body.fit.land .wrap { flex-direction: row; align-items: flex-start; justify-content: center; max-width: none; }
-body.fit.land header { flex-direction: column; align-items: flex-start; justify-content: flex-start; width: 150px; flex: 0 0 150px; padding-top: 8px; }
-body.fit.land .pills { flex-direction: column; align-items: flex-start; }
-body.fit.land .grid { margin: 0; flex: 1 1 auto; }
-body.fit.land header .board-foot { flex-direction: column; align-items: flex-start; margin-top: 8px; gap: 12px; }
-.cell {
-  touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
-  position: relative; aspect-ratio: 1; max-width: 100%; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg);
-  color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; padding: 4px;
-  display: flex; align-items: center; justify-content: center; text-align: center;
-  word-break: keep-all; overflow-wrap: anywhere; line-height: 1.25;
-  font-size: clamp(11px, 2.1vw, 16px); transition: border-color .15s, background .15s;
+.wrap { width: 100%; max-width: 980px; display: flex; flex-direction: column; gap: clamp(16px, 3vh, 32px); }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(32px, 6vw, 56px); line-height: 1.1; margin: 0; text-align: center; text-wrap: balance; }
+.lead { margin: 6px 0 0; text-align: center; color: var(--muted); font-size: clamp(14px, 2vw, 17px); }
+.cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(14px, 2.5vw, 28px); }
+@media (max-width: 560px) { .cards { grid-template-columns: minmax(0, 1fr); } }
+.game {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+  background: var(--surface); border: 2px solid var(--line); border-radius: 24px; padding: clamp(18px, 3vw, 32px);
+  color: inherit; text-decoration: none; font: inherit; cursor: pointer; width: 100%;
+  transition: transform .15s, border-color .15s;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
-.cell.s { font-size: clamp(10px, 1.7vw, 14px); }
-.cell.xs { font-size: clamp(9px, 1.4vw, 12px); }
-.cell:hover { border-color: var(--accent); }
-.cell:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.cell .t { position: relative; z-index: 1; }
-.cell::before {
-  content: ""; position: absolute; inset: 10%; border-radius: 50%; background: var(--dauber-soft);
-  box-shadow: inset 0 0 0 2px var(--dauber); transform: scale(0) rotate(-12deg); transition: transform .18s cubic-bezier(.3,1.6,.6,1);
-}
-.cell.on::before { transform: scale(1) rotate(0); }
-.cell.won { border-color: var(--win); background: var(--win-soft); }
-.cell.free { cursor: default; font-family: var(--font-display); font-weight: 400; letter-spacing: .06em; color: var(--dauber); }
-.cell.blocked {
-  cursor: not-allowed; color: var(--blocked); border-style: dashed;
-  background: repeating-linear-gradient(135deg, transparent 0 7px, var(--line) 7px 8px), var(--bg);
-}
-.cell.blocked .t { text-decoration: line-through; }
-.cell.blocked::before { display: none; }
-.cell.flash { animation: flash 1.2s ease-out; }
-@keyframes flash { 0%, 40% { box-shadow: 0 0 0 4px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
-.board.shuffle .cell { animation: flip .35s ease-out both; }
-@keyframes flip { from { transform: rotateY(90deg); opacity: .2 } to { transform: none; opacity: 1 } }
-.board-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
-.score { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted); }
-.score b { font-size: 22px; color: var(--ink); }
-.score.hit b { color: var(--win); }
-.btns { display: flex; flex-wrap: wrap; gap: 8px; }
-button.b { font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
-button.b:hover { border-color: var(--accent); }
-button.b.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-button.b.small { font-size: 13px; padding: 5px 10px; }
-button.b:disabled { opacity: .5; cursor: not-allowed; }
-button.b:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.stamp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
-.stamp span {
-  font-family: var(--font-display); font-size: clamp(48px, 12vw, 110px); color: var(--dauber); border: 6px solid var(--dauber);
-  padding: 0 .3em; border-radius: 16px; transform: rotate(-10deg); background: var(--surface);
-  animation: stamp .9s ease-out forwards;
-}
-@keyframes stamp { 0% { transform: rotate(-10deg) scale(2.2); opacity: 0 } 25% { transform: rotate(-10deg) scale(1); opacity: 1 } 80% { opacity: 1 } 100% { opacity: 0 } }
-@media (prefers-reduced-motion: reduce) { .cell::before { transition: none } .stamp span { animation: none; opacity: 0 } .board.shuffle .cell, .cell.flash { animation: none } }
-.board-wrap { position: relative; }
+.game:hover { transform: translateY(-3px); }
+.game:focus-visible { outline: 3px solid var(--bingo); outline-offset: 3px; }
+.game.bingo:hover { border-color: var(--bingo); }
+.game.word:hover { border-color: var(--word); }
+.game h2 { font-family: var(--font-display); font-weight: 400; font-size: clamp(26px, 4vw, 38px); margin: 0; line-height: 1.1; }
+.game p { margin: 0; color: var(--muted); font-size: clamp(13px, 1.8vw, 15px); }
+.art { width: min(100%, 220px); aspect-ratio: 1.4; border-radius: 18px; display: flex; align-items: center; justify-content: center; }
+.bingo .art { background: var(--bingo-soft); }
+.word .art { background: var(--word-soft); position: relative; overflow: hidden; }
+.mini-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; width: 62%; }
+.mini-board i { aspect-ratio: 1; border-radius: 4px; background: var(--surface); border: 1.5px solid var(--line); position: relative; }
+.mini-board i.on::after { content: ""; position: absolute; inset: 18%; border-radius: 50%; border: 2px solid var(--bingo); background: color-mix(in srgb, var(--bingo) 20%, transparent); }
+.bub { position: absolute; font-family: var(--font-display); font-size: clamp(12px, 1.6vw, 15px); padding: 4px 12px; border-radius: 999px; color: #5a3a1c; box-shadow: 0 3px 0 rgba(0,0,0,.08); white-space: nowrap; animation: float 3.2s ease-in-out infinite; }
+.bub:nth-child(1) { background: #ffd6a5; left: 8%; top: 14%; }
+.bub:nth-child(2) { background: #caffbf; right: 10%; top: 30%; animation-delay: -1s; }
+.bub:nth-child(3) { background: #bde0fe; left: 18%; bottom: 14%; animation-delay: -2s; }
+.bub:nth-child(4) { background: #ffc6ff; right: 16%; bottom: 22%; animation-delay: -1.6s; }
+@keyframes float { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-6px) rotate(2deg); } }
+@media (prefers-reduced-motion: reduce) { .bub { animation: none; } }
+.go { font-family: var(--font-display); font-size: clamp(17px, 2.4vw, 21px); padding: 10px 26px; border-radius: 999px; color: #fff; }
+.bingo .go { background: var(--bingo); }
+.word .go { background: var(--word); }
+.lock-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--word); }
+.lock-badge svg { width: 14px; height: 14px; }
+.word.locked .art { filter: grayscale(.6); opacity: .7; }
 
-/* Host panel */
-.host-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
-.hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
-.chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow-y: auto; }
-.chip { font: inherit; font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
-.chip:hover { border-color: var(--dauber); }
-.chip.off { color: var(--blocked); text-decoration: line-through; border-style: dashed; }
-.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.mini-wrap { display: grid; grid-template-columns: 28px repeat(5, minmax(0, 1fr)); gap: 4px; max-width: 280px; }
-.mini-wrap .lab { font-family: var(--font-mono); font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
-.mini { aspect-ratio: 1; border: 1.5px solid var(--line); border-radius: 6px; background: var(--bg); font-family: var(--font-mono); font-size: 11px; color: var(--muted); cursor: pointer; padding: 0; }
-.mini:hover { border-color: var(--accent); }
-.mini.sel { background: var(--accent); border-color: var(--accent); color: var(--surface); }
-.mini.fixed { cursor: not-allowed; opacity: .45; }
-.mini.isfree { color: var(--dauber); border-color: var(--dauber); font-weight: 700; font-size: 10px; }
-.mini.isfree.sel { background: var(--dauber); color: var(--surface); }
-.mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.swap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
-.shift-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 4px; }
-.shift-list { display: flex; flex-direction: column; gap: 6px; }
-.shift-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.shift-item .lab { width: 30px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
-.arrow { font: inherit; font-size: 15px; line-height: 1; width: 36px; height: 30px; border-radius: 6px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; padding: 0; }
-.arrow:hover { border-color: var(--accent); color: var(--accent); }
-.arrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.sub-h { font-size: 13px; font-weight: 700; margin: 16px 0 6px; }
-.cell.slide-r { animation: slideR .45s ease-out; }
-.cell.slide-l { animation: slideL .45s ease-out; }
-.cell.slide-d { animation: slideD .45s ease-out; }
-.cell.slide-u { animation: slideU .45s ease-out; }
-@keyframes slideR { from { transform: translateX(-70%); opacity: .2 } to { transform: none; opacity: 1 } }
-@keyframes slideL { from { transform: translateX(70%); opacity: .2 } to { transform: none; opacity: 1 } }
-@keyframes slideD { from { transform: translateY(-70%); opacity: .2 } to { transform: none; opacity: 1 } }
-@keyframes slideU { from { transform: translateY(70%); opacity: .2 } to { transform: none; opacity: 1 } }
-@media (prefers-reduced-motion: reduce) { .cell.slide-r, .cell.slide-l, .cell.slide-d, .cell.slide-u { animation: none } }
-.history { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
-label.f { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-input[type=text], textarea { width: 100%; font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-textarea { min-height: 200px; resize: vertical; line-height: 1.5; }
-input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.form { display: flex; flex-direction: column; gap: 12px; }
-.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.count { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); margin-top: 4px; }
-.count.bad { color: var(--dauber); }
-.msg { font-size: 13px; min-height: 1.2em; margin: 0; color: var(--win); }
-.msg.err { color: var(--dauber); }
-.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--dauber); font-weight: 700; }
-
-.login { display: flex; flex-direction: column; gap: 10px; }
-.login input[type=email], .login input[type=password] { width: 100%; font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-.host-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
-code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+/* password box */
+.lockbox { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 100%; }
+.lockbox form { display: flex; gap: 8px; width: 100%; max-width: 280px; }
+.lockbox input {
+  flex: 1; min-width: 0; font: inherit; font-size: 20px; letter-spacing: .3em; text-align: center; padding: 8px 10px;
+  border-radius: 12px; border: 2px solid var(--line); background: var(--bg); color: var(--ink);
+}
+.lockbox input:focus-visible { outline: none; border-color: var(--word); }
+.lockbox button { font-family: var(--font-display); font-size: 18px; border: 0; border-radius: 12px; padding: 0 16px; background: var(--word); color: #fff; cursor: pointer; }
+.lockbox button:focus-visible { outline: 3px solid var(--word); outline-offset: 2px; }
+.lockmsg { min-height: 1.3em; margin: 0; font-size: 13px; font-weight: 700; color: var(--danger); }
+.shake { animation: shake .35s; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <h1 id="title">빙고</h1>
-      <p class="sub" id="sub">칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!</p>
-    </div>
-    <div class="pills">
-      <span class="pill example" id="phasePill">게임 시작 전</span>
-      <span class="pill off" id="livePill">연결 중</span>
-    </div>
-  </header>
-
-  <div class="banner" id="banner" role="status" aria-live="polite" hidden></div>
-
-  <div class="grid" id="grid">
-    <section class="card board-card" aria-label="내 빙고판">
-      <div class="letters" aria-hidden="true"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
-      <div class="board-wrap">
-        <div class="board" id="board"></div>
-        <div class="stamp" id="stamp" hidden><span>BINGO</span></div>
+<main class="wrap">
+  <div>
+    <h1>어떤 게임을 할까요?</h1>
+    <p class="lead">전기와 자기 단원 용어로 즐기는 게임이에요.</p>
+  </div>
+  <div class="cards">
+    <a class="game bingo" href="bingo.html">
+      <div class="art" aria-hidden="true">
+        <div class="mini-board">
+          <i class="on"></i><i></i><i></i><i class="on"></i><i></i>
+          <i></i><i class="on"></i><i></i><i></i><i></i>
+          <i></i><i></i><i class="on"></i><i></i><i class="on"></i>
+          <i class="on"></i><i></i><i></i><i class="on"></i><i></i>
+          <i></i><i></i><i class="on"></i><i></i><i class="on"></i>
+        </div>
       </div>
-      <div class="board-foot">
-        <div class="score" id="score"></div>
-        <div class="btns"><button class="b primary" id="shuffleBtn" type="button">판 섞기</button><button class="b" id="clearBtn" type="button">내 표시 지우기</button></div>
+      <h2>빙고</h2>
+      <p>나만의 5×5 판에서 진행자가 부르는 용어를 표시해요.</p>
+      <span class="go">시작하기</span>
+    </a>
+
+    <div class="game word locked" id="wordCard" role="group" aria-label="단어 맞추기">
+      <div class="art" aria-hidden="true">
+        <span class="bub">전압</span><span class="bub">자기장</span><span class="bub">코일</span><span class="bub">V=IR</span>
       </div>
-    </section>
-
-    <div class="host-col" id="loginCol" hidden>
-      <section class="card">
-        <h2>진행자 로그인</h2>
-        <p class="hint">진행자 계정으로 로그인하면 게임 시작·초기화, 칸 없애기, 칸 교환, 줄 밀기를 할 수 있어요.</p>
-        <form class="login" id="loginForm">
-          <label class="f" for="lEmail">이메일</label>
-          <input type="email" id="lEmail" autocomplete="username" required>
-          <label class="f" for="lPw">비밀번호</label>
-          <input type="password" id="lPw" autocomplete="current-password" required>
-          <button class="b primary" type="submit" id="loginBtn">로그인</button>
-          <p class="msg err" id="loginMsg"></p>
+      <h2>단어 맞추기</h2>
+      <p>떠다니는 용어 중 정답만 골라 터치하고 랭킹에 도전해요.</p>
+      <div class="lockbox" id="lockbox">
+        <span class="lock-badge">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>
+          잠겨 있어요. 비밀번호를 입력하세요.
+        </span>
+        <form id="unlockForm" autocomplete="off">
+          <input id="pw" type="password" inputmode="numeric" maxlength="8" aria-label="비밀번호" placeholder="••••">
+          <button type="submit">열기</button>
         </form>
-      </section>
-    </div>
-
-    <div class="host-col" id="hostCol" hidden>
-      <div class="host-top"><span id="hostWho"></span><span id="appVer"></span><button class="b small" id="logoutBtn" type="button">로그아웃</button></div>
-      <section class="card">
-        <h2>게임 진행</h2>
-        <p class="hint" id="phaseHint"></p>
-        <div class="phase-row">
-          <span class="phase-now" id="phaseNow"></span>
-          <button class="b primary" id="goBtn" type="button">게임 시작</button>
-          <button class="b" id="resetBtn" type="button">게임 초기화</button>
-        </div>
-        <div class="confirm" id="resetConfirm" hidden style="margin-top:10px">
-          학생들의 표시, 없앤 칸, 교환이 모두 지워져요.
-          <button class="b small primary" id="resetYes" type="button">초기화</button>
-          <button class="b small" id="resetNo" type="button">취소</button>
-        </div>
-        <p class="msg" id="ctlMsg" style="margin-top:10px"></p>
-      </section>
-      <section class="card" id="removeCard">
-        <h2>용어 없애기</h2>
-        <p class="hint">누른 용어의 칸이 모든 학생 화면에서 바로 막혀요. 다시 누르면 되살아납니다.</p>
-        <div class="chips" id="chips"></div>
-      </section>
-
-      <section class="card" id="swapCard">
-        <h2>칸 교환 · FREE · 줄 밀기</h2>
-        <p class="hint">모든 학생 판에서 위치가 똑같이 바뀌어요. 위치 하나를 고르면 FREE로 고정, 두 곳을 고르면 교환할 수 있어요. FREE 칸은 교환·밀기에 움직이지 않아요.</p>
-        <div class="sub-h">칸 교환 · FREE 고정</div>
-        <div class="mini-wrap" id="mini"></div>
-        <div class="swap-row">
-          <button class="b primary small" id="swapBtn" type="button" disabled>교환</button>
-          <button class="b small" id="freeBtn" type="button" disabled>FREE로 고정</button>
-          <span class="hint" id="swapSel" style="margin:0"></span>
-        </div>
-        <div class="sub-h">줄 밀기 (한 칸씩, 끝 칸은 반대쪽으로)</div>
-        <div class="shift-grid">
-          <div class="shift-list" id="shiftRows"></div>
-          <div class="shift-list" id="shiftCols"></div>
-        </div>
-        <div class="swap-row">
-          <button class="b small" id="undoSwapBtn" type="button" disabled>마지막 변경 되돌리기</button>
-        </div>
-        <ol class="history" id="history"></ol>
-      </section>
-
-      <section class="card">
-        <h2>용어 바꾸기</h2>
-        <p class="hint">용어를 바꾸면 게임이 초기화되고 모든 학생의 판이 새 용어로 섞여요.</p>
-        <form class="form" id="hostForm">
-          <div>
-            <label class="f" for="fTitle">빙고 제목</label>
-            <input type="text" id="fTitle" maxlength="60">
-          </div>
-          <div>
-            <label class="f" for="fTerms">용어 (한 줄에 하나, 또는 쉼표로 구분)</label>
-            <textarea id="fTerms" spellcheck="false"></textarea>
-            <div class="count" id="fCount"></div>
-          </div>
-          <label class="check"><input type="checkbox" id="fFree"> 가운데 칸을 FREE로</label>
-          <button class="b primary" id="startBtn" type="submit">용어 적용</button>
-          <div class="confirm" id="confirmRow" hidden>
-            진행 중인 게임이 초기화돼요.
-            <button class="b small primary" id="confirmYes" type="button">적용</button>
-            <button class="b small" id="confirmNo" type="button">취소</button>
-          </div>
-          <p class="msg" id="msg"></p>
-        </form>
-      </section>
+        <p class="lockmsg" id="lockMsg" role="alert"></p>
+      </div>
+      <a class="go" id="wordGo" href="word.html" hidden>시작하기</a>
     </div>
   </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
-<script src="config.js"></script>
+</main>
 <script>
 (() => {
-  const DEFAULT = {
-    title: "빙고", free: false, round: 0, removed: [], moves: [], example: true, phase: "ready", reset: 0,
-    terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
-  };
-  const TABLE = "game_state", ROW_ID = 1;
-  const APP_VERSION = 8;  // raise when the page changes; older open pages reload themselves
-  function reloadIfOutdated(next) {
-    const v = next && Number(next.app) || 0;
-    if (v <= APP_VERSION) return false;
-    let tried = null; try { tried = sessionStorage.getItem("bingo.reloadedFor"); } catch {}
-    if (tried === String(v)) return false;
-    try { sessionStorage.setItem("bingo.reloadedFor", String(v)); } catch {}
-    // A new query string skips the browser's cached copy of the page.
-    location.replace(location.pathname + "?v=" + v + location.hash);
-    return true;
+  // Classroom gate only: the password lives in this page, so it keeps games closed until the teacher shares it.
+  const PASSWORD = "2026";
+  const KEY = "word.unlocked";
+  const card = document.getElementById("wordCard");
+  const unlocked = () => { try { return sessionStorage.getItem(KEY) === "1"; } catch { return false; } };
+  function show() {
+    const on = unlocked();
+    card.classList.toggle("locked", !on);
+    document.getElementById("lockbox").hidden = on;
+    document.getElementById("wordGo").hidden = !on;
   }
-  const LINES = [];
-  for (let r = 0; r < 5; r++) LINES.push([0,1,2,3,4].map(c => r*5+c));
-  for (let c = 0; c < 5; c++) LINES.push([0,1,2,3,4].map(r => r*5+c));
-  LINES.push([0,6,12,18,24], [4,8,12,16,20]);
-  const pos = i => (Math.floor(i / 5) + 1) + "행 " + (i % 5 + 1) + "열";
-
-  const $ = id => document.getElementById(id);
-  const ls = {
-    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
-    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
-  };
-  function hash(str) {
-    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-    for (let i = 0; i < str.length; i++) { const ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
-    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-    return h1 >>> 0;
-  }
-  function rng(seed) { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-  // ---- shared game state (written by the host) ----
-  let G = normalize(DEFAULT);
-  function normalize(g) {
-    g = g || {};
-    return {
-      title: g.title || "빙고", free: !!g.free, round: g.round || 0, example: !!g.example,
-      phase: g.phase === "playing" ? "playing" : "ready", reset: g.reset || 0,
-      terms: Array.isArray(g.terms) ? g.terms.filter(t => typeof t === "string") : [],
-      removed: Array.isArray(g.removed) ? g.removed : [],
-      // Position changes in order: {t:"swap",a,b} or {t:"row"|"col",i,d} (d = 1 right/down, -1 left/up).
-      moves: Array.isArray(g.moves) ? g.moves.filter(m => m && ["swap", "row", "col", "free", "unfree"].includes(m.t))
-        : Array.isArray(g.swaps) ? g.swaps.filter(s => Array.isArray(s) && s.length === 2).map(([a, b]) => ({ t: "swap", a, b })) : []
-    };
-  }
-  const need = () => G.free ? 24 : 25;
-  const gameSig = () => String(hash(G.round + "|" + G.free + "|" + G.terms.join("\u0001")));
-
-  // ---- my board (kept only in this browser) ----
-  const KEY = "bingo.v3";
-  let me = null;
-  // Each set of terms keeps its own saved board, so loading the default
-  // terms for a moment never overwrites the board a student chose.
-  const keyFor = sig => KEY + "." + sig;
-  function ensureMine() {
-    const sig = gameSig();
-    if (!me || me.sig !== sig) {
-      const saved = ls.get(keyFor(sig));
-      me = saved && saved.sig === sig ? saved : { sig, seed: Math.floor(Math.random() * 4294967296), marks: [], reset: G.reset };
-      if (me.reset !== G.reset) { me.reset = G.reset; me.marks = []; }
-      if (!G.example) ls.set(keyFor(sig), me);
-      return true;
-    }
-    if (me.reset !== G.reset) { me.reset = G.reset; me.marks = []; lastLines = 0; saveMine(); }
-    return false;
-  }
-  const saveMine = () => { if (!G.example) ls.set(keyFor(me.sig), me); };
-
-  function layout() {
-    const r = rng(me.seed);
-    const pool = G.terms.slice();
-    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const picked = pool.slice(0, need());
-    const arr = []; let k = 0;
-    for (let i = 0; i < 25; i++) arr.push(G.free && i === 12 ? null : (picked[k++] ?? ""));
-    const fixed = freeSet([]);
-    G.moves.forEach(m => applyMove(arr, m, fixed));
-    // A FREE position hides the term under it; the term comes back if the FREE is lifted.
-    return arr.map((t, i) => fixed.has(i) ? null : t);
-  }
-  // FREE positions after the given moves (all moves when none are given).
-  function freeSet(moves) {
-    const f = new Set(G.free ? [12] : []);
-    (moves || []).forEach(m => { if (m.t === "free") f.add(m.p); else if (m.t === "unfree" && !(G.free && m.p === 12)) f.delete(m.p); });
-    return f;
-  }
-  const lineOf = m => [0,1,2,3,4].map(k => m.t === "row" ? m.i * 5 + k : k * 5 + m.i);
-  function applyMove(arr, m, fixed) {
-    if (m.t === "free") { fixed.add(m.p); return; }
-    if (m.t === "unfree") { if (!(G.free && m.p === 12)) fixed.delete(m.p); return; }
-    const movable = i => arr[i] !== null && !fixed.has(i);
-    if (m.t === "swap") {
-      if (movable(m.a) && movable(m.b)) [arr[m.a], arr[m.b]] = [arr[m.b], arr[m.a]];
-      return;
-    }
-    // Rotate the line by one; FREE cells stay where they are and the others move around them.
-    const idx = lineOf(m).filter(movable);
-    const vals = idx.map(i => arr[i]);
-    const rot = m.d > 0 ? [vals[vals.length - 1], ...vals.slice(0, -1)] : [...vals.slice(1), vals[0]];
-    idx.forEach((i, k) => { arr[i] = rot[k]; });
-  }
-  const moveText = m => m.t === "swap" ? pos(m.a) + " ↔ " + pos(m.b)
-    : m.t === "free" ? pos(m.p) + " FREE 고정"
-    : m.t === "unfree" ? pos(m.p) + " FREE 해제"
-    : m.t === "row" ? (m.i + 1) + "행을 " + (m.d > 0 ? "오른쪽" : "왼쪽") + "으로 한 칸"
-    : (m.i + 1) + "열을 " + (m.d > 0 ? "아래" : "위") + "로 한 칸";
-  const moveCells = m => m.t === "swap" ? [m.a, m.b] : (m.t === "free" || m.t === "unfree") ? [m.p] : lineOf(m);
-  const slideClass = m => m.t === "row" ? (m.d > 0 ? "slide-r" : "slide-l") : m.t === "col" ? (m.d > 0 ? "slide-d" : "slide-u") : "";
-  let lastLines = 0;
-  let cells = [];
-  const isBlocked = i => cells[i] !== null && G.removed.includes(cells[i]);
-  const isOn = i => cells[i] === null || (!isBlocked(i) && me.marks.includes(cells[i]));
-  const completed = () => LINES.filter(l => l.every(isOn));
-  const playing = () => G.phase === "playing";
-
-  function renderAll(flashIdx, slide) {
-    $("title").textContent = G.title;
-    document.title = G.title;
-    const pp = $("phasePill");
-    pp.textContent = playing() ? "게임 중" : "게임 시작 전";
-    pp.className = "pill " + (playing() ? "playing" : "example");
-    $("shuffleBtn").hidden = playing();
-    $("clearBtn").hidden = !playing();
-    $("board").title = playing() ? "" : "게임이 시작되면 칸을 표시할 수 있어요";
-    cells = layout();
-    const board = $("board");
-    if (board.children.length !== 25) {
-      for (let i = 0; i < 25; i++) {
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "cell";
-        b.innerHTML = '<span class="t"></span>';
-        b.addEventListener("click", () => toggle(i));
-        board.appendChild(b);
-      }
-    }
-    const won = new Set(completed().flat());
-    [...board.children].forEach((b, i) => {
-      const free = cells[i] === null, blocked = isBlocked(i);
-      const term = free ? "FREE" : cells[i];
-      b.querySelector(".t").textContent = term;
-      const len = [...term].length;
-      b.className = "cell" + (free ? " free" : "") + (blocked ? " blocked" : "") + (isOn(i) ? " on" : "") + (won.has(i) ? " won" : "") + (len > 12 ? " xs" : len > 7 ? " s" : "");
-      b.disabled = free || blocked;
-      b.setAttribute("aria-pressed", String(isOn(i)));
-      b.setAttribute("aria-label", pos(i) + " " + term + (blocked ? ", 사용할 수 없음" : isOn(i) ? ", 표시됨" : ""));
-      if (slide && slide.cells.includes(i) && slide.cls) { void b.offsetWidth; b.classList.add(slide.cls); }
-      else if (flashIdx && flashIdx.has(i)) { b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
-    });
-    const lines = completed().length;
-    const marked = cells.filter((_, i) => isOn(i)).length;
-    const sc = $("score");
-    sc.className = "score" + (lines ? " hit" : "");
-    sc.innerHTML = "<b>" + lines + "</b> 줄 완성 · " + marked + "/25칸";
-    if (lines > lastLines) stamp();
-    lastLines = lines;
-    if (isHost) renderHost();
-  }
-  function stamp() {
-    const s = $("stamp"); s.hidden = false;
-    const span = s.firstElementChild; span.style.animation = "none"; void span.offsetWidth; span.style.animation = "";
-    clearTimeout(stamp.t); stamp.t = setTimeout(() => { s.hidden = true; }, 950);
-  }
-  function toggle(i) {
-    if (cells[i] === null || isBlocked(i)) return;
-    if (!playing()) { announce("게임이 시작되면 칸을 표시할 수 있어요. 지금은 <b>판 섞기</b>로 마음에 드는 판을 고르세요."); return; }
-    const t = cells[i], k = me.marks.indexOf(t);
-    k >= 0 ? me.marks.splice(k, 1) : me.marks.push(t);
-    saveMine(); renderAll();
-  }
-  $("clearBtn").addEventListener("click", () => { me.marks = []; lastLines = 0; saveMine(); renderAll(); });
-  $("shuffleBtn").addEventListener("click", () => {
-    if (playing()) return;
-    me.seed = Math.floor(Math.random() * 4294967296); me.marks = []; lastLines = 0; saveMine(); renderAll();
-    const bd = $("board"); bd.classList.remove("shuffle"); void bd.offsetWidth; bd.classList.add("shuffle");
-  });
-
-  let bannerTimer;
-  function announce(html) {
-    const b = $("banner"); b.innerHTML = html; b.hidden = false;
-    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { b.hidden = true; }, 6000);
-  }
-
-  // Apply a new shared state; tell the student what changed.
-  function applyState(next, announceChanges) {
-    if (reloadIfOutdated(next)) return;
-    const prev = G;
-    G = normalize(next);
-    const reset = ensureMine();
-    if (reset) lastLines = 0;
-    const flash = new Set();
-    let note = "", slide = null;
-    if (announceChanges && !reset) {
-      const newly = G.removed.filter(t => !prev.removed.includes(t));
-      const back = prev.removed.filter(t => !G.removed.includes(t));
-      if (G.moves.length > prev.moves.length) {
-        const m = G.moves[G.moves.length - 1];
-        note = m.t === "swap" ? "진행자가 <b>" + pos(m.a) + "</b> 칸과 <b>" + pos(m.b) + "</b> 칸을 바꿨어요."
-          : m.t === "free" ? "<b>" + pos(m.p) + "</b> 칸이 <b>FREE</b>가 됐어요!"
-          : m.t === "unfree" ? "<b>" + pos(m.p) + "</b> 칸의 FREE가 해제됐어요."
-          : "진행자가 <b>" + moveText(m) + "</b> 밀었어요.";
-        moveCells(m).forEach(i => flash.add(i));
-        if (m.t === "row" || m.t === "col") slide = { cells: moveCells(m), cls: slideClass(m) };
-      } else if (G.moves.length < prev.moves.length) {
-        const m = prev.moves[prev.moves.length - 1];
-        note = "진행자가 <b>" + moveText(m) + "</b> 변경을 되돌렸어요.";
-        moveCells(m).forEach(i => flash.add(i));
-        if (m.t === "row" || m.t === "col") slide = { cells: moveCells(m), cls: slideClass({ ...m, d: -m.d }) };
-      }
-      if (newly.length) note = "진행자가 <b>" + newly.map(esc).join(", ") + "</b> 칸을 없앴어요.";
-      if (back.length) note = "<b>" + back.map(esc).join(", ") + "</b> 칸을 다시 쓸 수 있어요.";
-      const nextCells = layout();
-      [...newly, ...back].forEach(t => { const i = nextCells.indexOf(t); if (i >= 0) flash.add(i); });
-    } else if (announceChanges && reset && !G.example) {
-      note = "용어가 바뀌었어요. <b>판 섞기</b>로 마음에 드는 판을 고르세요.";
-    }
-    if (announceChanges && !reset) {
-      if (prev.phase !== "playing" && G.phase === "playing") note = "<b>게임 시작!</b> 이제 판은 바꿀 수 없어요. 칸을 눌러 표시하세요.";
-      else if (G.reset !== prev.reset) note = "게임이 초기화됐어요. 게임이 시작되기 전까지 <b>판 섞기</b>로 판을 바꿀 수 있어요.";
-    }
-    renderAll(flash, slide);
-    if (reset && announceChanges) { const bd = $("board"); bd.classList.remove("shuffle"); void bd.offsetWidth; bd.classList.add("shuffle"); }
-    if (note) announce(note);
-  }
-
-  // ---- Supabase connection ----
-  const live = $("livePill");
-  function setLive(on, text) { live.className = "pill " + (on ? "live" : "off"); live.textContent = text; }
-  const cfg = window.BINGO_CONFIG || {};
-  const configured = window.supabase && cfg.supabaseUrl && cfg.supabaseAnonKey && !/YOUR-/.test(cfg.supabaseUrl + cfg.supabaseAnonKey);
-  let sb = null, isHost = false;
-
-  async function fetchState(announceChanges) {
-    const { data, error } = await sb.from(TABLE).select("data").eq("id", ROW_ID).maybeSingle();
-    if (error) { setLive(false, "연결 안 됨"); return; }
-    if (data && data.data) {
-      $("sub").textContent = "칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!";
-      applyState(data.data, announceChanges);
-      if (isHost && !$("hostForm").contains(document.activeElement)) fillForm();
-    } else {
-      $("sub").textContent = isHost ? "오른쪽 용어 바꾸기에서 용어를 정하고 적용하세요." : "진행자가 아직 게임을 시작하지 않았어요. 지금은 기본 용어로 보여드려요.";
-    }
-  }
-
-  // ---- host controls ----
-  let selected = [], writing = false, pendingState = null, writeTimer = null;
-  function pushState(next) {
-    applyState(next, false);
-    pendingState = { ...G, app: APP_VERSION }; delete pendingState.example;
-    // Several quick clicks become one save.
-    clearTimeout(writeTimer); writeTimer = setTimeout(flushWrite, 350);
-  }
-  async function flushWrite() {
-    if (writing || !pendingState) return;
-    writing = true;
-    const s = pendingState; pendingState = null;
-    const { data, error } = await sb.from(TABLE).upsert({ id: ROW_ID, data: s, updated_at: new Date().toISOString() }).select("id");
-    if (error || !data || !data.length) {
-      const m = error ? [error.code, error.message].filter(Boolean).join(" ") : "저장된 줄 없음";
-      const why = /row-level security|42501|permission denied/i.test(m) ? "진행자 권한이 없어요. game_hosts의 이메일이 로그인 이메일과 같은지, supabase.sql을 다시 실행했는지 확인해 주세요."
-        : /does not exist|42P01|PGRST20[0-9]/i.test(m) ? "Supabase에 game_state 테이블이 없거나 열려 있지 않아요. supabase.sql을 다시 실행해 주세요."
-        : /JWT|token/i.test(m) ? "로그인이 만료됐어요. 로그아웃 후 다시 로그인해 주세요."
-        : "학생 화면에 반영하지 못했어요.";
-      setMsg(why + " (오류: " + m + ")", true);
-    } else if ($("ctlMsg").classList.contains("err")) setMsg("");
-    writing = false;
-    if (pendingState) flushWrite();
-  }
-  function setMsg(t, err) { const m = $("ctlMsg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); }
-  const needStart = () => { if (!playing()) { setMsg("칸 없애기와 교환은 게임을 시작한 뒤에 할 수 있어요.", true); return true; } return false; };
-  function renderPhase() {
-    const on = playing();
-    $("phaseNow").textContent = on ? "● 게임 중" : "● 게임 시작 전";
-    $("phaseNow").className = "phase-now " + (on ? "playing" : "ready");
-    $("phaseHint").textContent = on
-      ? "학생들은 판을 섞을 수 없고, 칸을 눌러 표시해요. 아래에서 칸 없애기와 교환을 할 수 있어요."
-      : "학생들이 판 섞기로 판을 고르는 중이에요. 게임을 시작하면 각자 마지막으로 고른 판으로 고정돼요.";
-    $("goBtn").hidden = on;
-    $("removeCard").classList.toggle("locked", !on);
-    $("swapCard").classList.toggle("locked", !on);
-  }
-  $("goBtn").addEventListener("click", () => {
-    if (playing()) return;
-    pushState({ ...G, phase: "playing" });
-    setMsg("게임을 시작했어요.");
-  });
-  $("resetBtn").addEventListener("click", () => { $("resetConfirm").hidden = false; });
-  $("resetNo").addEventListener("click", () => { $("resetConfirm").hidden = true; });
-  $("resetYes").addEventListener("click", () => {
-    $("resetConfirm").hidden = true; selected = [];
-    pushState({ ...G, phase: "ready", removed: [], moves: [], reset: (G.reset || 0) + 1 });
-    setMsg("게임을 초기화했어요. 학생들이 다시 판을 섞을 수 있어요.");
-  });
-
-  function renderHost() {
-    renderPhase();
-    const chips = $("chips");
-    chips.innerHTML = "";
-    G.terms.forEach(t => {
-      const c = document.createElement("button");
-      c.type = "button"; c.className = "chip" + (G.removed.includes(t) ? " off" : "");
-      c.textContent = t; c.setAttribute("aria-pressed", String(G.removed.includes(t)));
-      c.addEventListener("click", () => {
-        if (needStart()) return;
-        const removed = G.removed.includes(t) ? G.removed.filter(x => x !== t) : [...G.removed, t];
-        pushState({ ...G, removed });
-      });
-      chips.appendChild(c);
-    });
-    const mini = $("mini");
-    if (!mini.children.length) {
-      mini.appendChild(Object.assign(document.createElement("span"), { className: "lab" }));
-      for (let c = 1; c <= 5; c++) mini.appendChild(Object.assign(document.createElement("span"), { className: "lab", textContent: c + "열" }));
-      for (let r = 0; r < 5; r++) {
-        mini.appendChild(Object.assign(document.createElement("span"), { className: "lab", textContent: (r + 1) + "행" }));
-        for (let c = 0; c < 5; c++) {
-          const i = r * 5 + c, b = document.createElement("button");
-          b.type = "button"; b.className = "mini"; b.dataset.i = i; b.textContent = (r + 1) + "-" + (c + 1);
-          b.setAttribute("aria-label", pos(i));
-          b.addEventListener("click", () => {
-            if (G.free && i === 12) return;  // the starting FREE centre stays fixed
-            const k = selected.indexOf(i);
-            if (k >= 0) selected.splice(k, 1); else { selected.push(i); if (selected.length > 2) selected.shift(); }
-            renderHost();
-          });
-          mini.appendChild(b);
-        }
-      }
-    }
-    const frees = freeSet(G.moves);
-    mini.querySelectorAll(".mini").forEach(b => {
-      const i = +b.dataset.i, r = Math.floor(i / 5), c = i % 5;
-      b.textContent = frees.has(i) ? "FREE" : (r + 1) + "-" + (c + 1);
-      b.className = "mini" + (selected.includes(i) ? " sel" : "") + (G.free && i === 12 ? " fixed" : "") + (frees.has(i) ? " isfree" : "");
-    });
-    $("swapBtn").disabled = selected.length !== 2 || selected.some(i => frees.has(i));
-    const one = selected.length === 1 ? selected[0] : null;
-    $("freeBtn").disabled = one === null;
-    $("freeBtn").textContent = one !== null && frees.has(one) ? "FREE 해제" : "FREE로 고정";
-    $("swapSel").textContent = selected.some(i => frees.has(i)) && selected.length === 2 ? "FREE 칸은 교환할 수 없어요"
-      : selected.length ? selected.map(pos).join(" ↔ ") : "";
-    $("undoSwapBtn").disabled = !G.moves.length;
-    if (!$("shiftRows").children.length) {
-      const mk = (box, t, i, label, dirs) => {
-        const row = document.createElement("div"); row.className = "shift-item";
-        row.appendChild(Object.assign(document.createElement("span"), { className: "lab", textContent: label }));
-        dirs.forEach(([d, sym, name]) => {
-          const a = document.createElement("button");
-          a.type = "button"; a.className = "arrow"; a.textContent = sym; a.setAttribute("aria-label", label + " " + name + "으로 밀기");
-          a.addEventListener("click", () => { if (needStart()) return; pushState({ ...G, moves: [...G.moves, { t, i, d }] }); });
-          row.appendChild(a);
-        });
-        box.appendChild(row);
-      };
-      for (let i = 0; i < 5; i++) mk($("shiftRows"), "row", i, (i + 1) + "행", [[-1, "◀", "왼쪽"], [1, "▶", "오른쪽"]]);
-      for (let i = 0; i < 5; i++) mk($("shiftCols"), "col", i, (i + 1) + "열", [[-1, "▲", "위"], [1, "▼", "아래"]]);
-    }
-    const h = $("history"); h.innerHTML = "";
-    G.moves.forEach((m, n) => { const li = document.createElement("li"); li.textContent = (n + 1) + ". " + moveText(m); h.appendChild(li); });
-  }
-  $("swapBtn").addEventListener("click", () => {
-    if (selected.length !== 2 || needStart()) return;
-    const [a, b] = selected; selected = [];
-    pushState({ ...G, moves: [...G.moves, { t: "swap", a, b }] });
-  });
-  $("freeBtn").addEventListener("click", () => {
-    if (selected.length !== 1 || needStart()) return;
-    const p = selected[0]; selected = [];
-    const t = freeSet(G.moves).has(p) ? "unfree" : "free";
-    pushState({ ...G, moves: [...G.moves, { t, p }] });
-  });
-  $("undoSwapBtn").addEventListener("click", () => { if (G.moves.length) pushState({ ...G, moves: G.moves.slice(0, -1) }); });
-
-  function parseTerms(text) {
-    const seen = new Set(), out = [];
-    text.split(/[\n,]/).map(s => s.trim()).filter(Boolean).forEach(t => { if (!seen.has(t)) { seen.add(t); out.push(t); } });
-    return out;
-  }
-  function updateCount() {
-    const n = parseTerms($("fTerms").value).length, nd = $("fFree").checked ? 24 : 25;
-    const el = $("fCount");
-    el.textContent = "용어 " + n + "개 · 최소 " + nd + "개 필요" + (n < nd ? " · " + (nd - n) + "개 더 입력하세요" : n > nd ? " · 학생마다 " + nd + "개를 무작위로 뽑음" : "");
-    el.className = "count" + (n < nd ? " bad" : "");
-    $("startBtn").disabled = n < nd;
-  }
-  function fillForm() { $("fTitle").value = G.title; $("fTerms").value = G.terms.join("\n"); $("fFree").checked = G.free; updateCount(); }
-  $("fTerms").addEventListener("input", updateCount);
-  $("fFree").addEventListener("change", updateCount);
-  function startGame() {
-    const terms = parseTerms($("fTerms").value), free = $("fFree").checked;
-    if (terms.length < (free ? 24 : 25)) return;
-    $("confirmRow").hidden = true; selected = [];
-    pushState({ title: $("fTitle").value.trim() || "빙고", terms, free, round: (G.round || 0) + 1, removed: [], moves: [], phase: "ready", reset: (G.reset || 0) + 1 });
-    const m = $("msg"); m.className = "msg"; m.textContent = "용어를 적용했어요. 학생들이 새 판을 섞을 수 있어요.";
-  }
-  $("hostForm").addEventListener("submit", e => { e.preventDefault(); if (G.example) startGame(); else $("confirmRow").hidden = false; });
-  $("confirmYes").addEventListener("click", startGame);
-  $("confirmNo").addEventListener("click", () => { $("confirmRow").hidden = true; });
-
-  // ---- host login (open the page with #host) ----
-  function showHostUI(session) {
-    isHost = !!session;
-    $("hostCol").hidden = !isHost;
-    $("loginCol").hidden = isHost || location.hash !== "#host";
-    $("grid").classList.toggle("host", isHost || location.hash === "#host");
-    if (isHost) { $("hostWho").textContent = "진행자: " + (session.user.email || ""); $("appVer").textContent = "화면 버전 " + APP_VERSION; fillForm(); renderHost(); }
-    fitBoard();
-  }
-
-  // Student view: size the board so the whole page fits one screen without scrolling.
-  function fitBoard() {
-    const grid = $("grid");
-    const student = !grid.classList.contains("host");
-    document.body.classList.toggle("fit", student);
-    const land = student && window.innerWidth >= 700 && window.innerWidth > window.innerHeight * 1.1;
-    document.body.classList.toggle("land", land);
-    // In landscape the score and clear button move to the left column too.
-    const foot = document.querySelector(".board-foot");
-    const footHome = document.querySelector(".board-card");
-    const header = document.querySelector("header");
-    if (land && foot.parentElement !== header) header.appendChild(foot);
-    if (!land && foot.parentElement !== footHome) footHome.appendChild(foot);
-    if (!student) { grid.style.maxWidth = ""; return; }
-    grid.style.maxWidth = "";
-    for (let pass = 0; pass < 2; pass++) {
-      const card = grid.querySelector(".board-card"), board = $("board");
-      const extraV = card.offsetHeight - board.offsetHeight;
-      const extraH = card.offsetWidth - board.offsetWidth;
-      const top = card.getBoundingClientRect().top + window.scrollY;
-      const bottomPad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
-      const availH = window.innerHeight - top - bottomPad - 2;
-      const boardSize = Math.max(220, availH - extraV);
-      let w = boardSize + extraH;
-      if (land) {
-        const wrapW = grid.parentElement.clientWidth;
-        const headW = document.querySelector("header").offsetWidth + 16;
-        w = Math.min(w, wrapW - headW);
-      } else w = Math.min(w, 900, grid.parentElement.clientWidth);
-      grid.style.maxWidth = Math.floor(w) + "px";
-    }
-    const cellW = $("board").firstElementChild ? $("board").firstElementChild.offsetWidth : 100;
-    document.body.style.setProperty("--cell-font", Math.max(11, Math.min(24, Math.round(cellW * 0.15))) + "px");
-  }
-  let fitTimer;
-  const refit = () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBoard, 80); };
-  window.addEventListener("resize", refit);
-  window.addEventListener("orientationchange", refit);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
-  $("loginForm").addEventListener("submit", async e => {
+  document.getElementById("unlockForm").addEventListener("submit", e => {
     e.preventDefault();
-    if (!sb) return;
-    $("loginMsg").textContent = ""; $("loginBtn").disabled = true;
-    const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPw").value });
-    $("loginBtn").disabled = false;
-    if (error) {
-      const m = (error.message || "") + "";
-      const why = /invalid login credentials/i.test(m) ? "이메일 또는 비밀번호가 맞지 않아요."
-        : /email not confirmed/i.test(m) ? "이메일 인증이 안 된 계정이에요. Supabase에서 Auto Confirm으로 다시 만들어 주세요."
-        : /logins are disabled|provider is disabled/i.test(m) ? "Supabase에서 이메일 로그인이 꺼져 있어요. Authentication → Sign In / Providers → Email을 켜 주세요."
-        : /invalid api key|no api key|apikey/i.test(m) ? "config.js의 키가 맞지 않아요. Publishable key를 다시 복사해 주세요."
-        : /fetch|network/i.test(m) ? "Supabase에 연결하지 못했어요. config.js의 주소와 프로젝트 상태를 확인해 주세요."
-        : "로그인하지 못했어요.";
-      $("loginMsg").textContent = why + " (오류: " + (m || error.status || "알 수 없음") + ")";
+    const pw = document.getElementById("pw");
+    if (pw.value.trim() === PASSWORD) {
+      try { sessionStorage.setItem(KEY, "1"); } catch {}
+      location.href = "word.html";
+    } else {
+      document.getElementById("lockMsg").textContent = "비밀번호가 맞지 않아요.";
+      pw.value = "";
+      card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
     }
   });
-  $("logoutBtn").addEventListener("click", () => sb && sb.auth.signOut());
-  window.addEventListener("hashchange", async () => { if (sb) { const { data } = await sb.auth.getSession(); showHostUI(data.session); } });
-
-  // ---- boot ----
-  ensureMine(); renderAll(); fitBoard();
-  if (!configured) {
-    setLive(false, "설정 필요");
-    $("sub").textContent = "config.js에 Supabase 주소와 키를 넣으면 진행자의 변경이 실시간으로 반영돼요. 지금은 기본 용어로 보여드려요.";
-    return;
-  }
-  // Accept a pasted URL with extra paths such as /rest/v1/.
-  const baseUrl = String(cfg.supabaseUrl).trim().replace(/\/(rest|auth|realtime)\/v1.*$/i, "").replace(/\/+$/, "");
-  const hostMode = location.hash === "#host";
-  sb = window.supabase.createClient(baseUrl, String(cfg.supabaseAnonKey).trim(), {
-    auth: { persistSession: true, autoRefreshToken: hostMode, detectSessionInUrl: false }
-  });
-  sb.auth.onAuthStateChange((_event, session) => showHostUI(session));
-  sb.auth.getSession().then(({ data }) => showHostUI(data.session));
-
-  let firstLoad = true, wasDown = false;
-  fetchState(false).then(() => { firstLoad = false; });
-  sb.channel("bingo-game")
-    .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: "id=eq." + ROW_ID }, payload => {
-      if (payload.new && payload.new.data) {
-        $("sub").textContent = "칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!";
-        applyState(payload.new.data, !isHost);
-      }
-    })
-    .subscribe(status => {
-      // After a dropped connection comes back, read the state once to catch up.
-      if (status === "SUBSCRIBED") { setLive(true, "실시간 연결됨"); if (!firstLoad && wasDown) fetchState(!isHost); wasDown = false; }
-      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { wasDown = true; setLive(false, "다시 연결 중"); }
-    });
+  show();
 })();
 </script>
 </body>

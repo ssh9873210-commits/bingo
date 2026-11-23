@@ -1,4 +1,24 @@
-# 빙고
+# 과학 용어 게임 (빙고 · 단어 맞추기)
+
+첫 화면에서 **빙고**와 **단어 맞추기** 중 하나를 골라 하는 수업용 웹 게임입니다.
+
+| 주소 | 내용 |
+| --- | --- |
+| `https://ssh9873210-commits.github.io/bingo/` | 첫 화면 (게임 선택) |
+| `https://ssh9873210-commits.github.io/bingo/bingo.html` | 빙고 (진행자: 끝에 `#host`) |
+| `https://ssh9873210-commits.github.io/bingo/word.html` | 단어 맞추기 (관리자: 끝에 `#host`) |
+
+## 단어 맞추기
+
+- 첫 화면에서 **비밀번호 2026**을 입력해야 열려요. (`index.html`과 `word.html`의 `PASSWORD`에서 바꿀 수 있어요.)
+- 떠다니는 용어 풍선 중 **찾아야 할 용어**(31개)만 터치해요. 정답 +10, 틀린 용어 −5, 제한 시간 60초, 모두 찾으면 남은 시간 × 2 보너스.
+- 게임은 학생 기기 안에서만 진행되고, **랭킹을 불러올 때와 등록할 때만** Supabase를 써요.
+- 끝나면 닉네임(최대 10글자)으로 랭킹에 등록해요. 같은 닉네임은 **더 높은 점수 하나만** 남아요(대소문자 구분 없음). 랭킹은 TOP 15까지 보여요.
+- 관리자: `word.html#host`에서 진행자 계정으로 로그인하면 기록별 **삭제**와 **랭킹 전체 삭제**를 할 수 있어요.
+- 정답 용어(`TARGETS`)와 틀린 용어(`DECOYS`), 제한 시간과 점수는 `word.html` 맨 위 **게임 설정**에서 바꿀 수 있어요.
+- 처음 한 번 Supabase SQL Editor에서 `supabase-word.sql`을 실행해야 랭킹이 동작해요.
+
+## 빙고
 
 진행자가 정한 용어로 학생마다 다르게 섞인 5×5 빙고판을 만드는 수업용 웹 빙고입니다.
 
@@ -10,7 +30,10 @@
 
 | 파일 | 설명 |
 | --- | --- |
-| `index.html` | 빙고 페이지 (학생용 + 진행자용) |
+| `index.html` | 첫 화면 (게임 선택) |
+| `bingo.html` | 빙고 (학생용 + 진행자용) |
+| `word.html` | 단어 맞추기 |
+| `supabase-word.sql` | 단어 맞추기 랭킹 테이블과 규칙 |
 | `config.js` | Supabase 주소와 anon 키를 넣는 곳 |
 | `supabase.sql` | 테이블, 접근 규칙, 실시간 설정, 첫 게임 데이터 |
 
@@ -42,8 +65,8 @@
 
 ## 사용 방법
 
-- **학생용 링크**: `https://ssh9873210-commits.github.io/bingo/`
-- **진행자용 링크**: `https://ssh9873210-commits.github.io/bingo/#host` → 진행자 이메일로 로그인
+- **학생용 링크**: `https://ssh9873210-commits.github.io/bingo/` (첫 화면에서 빙고 선택) 또는 `.../bingo/bingo.html`
+- **진행자용 링크**: `https://ssh9873210-commits.github.io/bingo/bingo.html#host` → 진행자 이메일로 로그인
 
 게임 흐름:
 1. **게임 시작 전**: 학생은 **판 섞기**로 원하는 만큼 판을 섞어요. 아직 칸은 표시할 수 없어요.
