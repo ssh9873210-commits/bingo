@@ -4,6 +4,6 @@
 //   이 키는 공개돼도 괜찮아요. 쓰기 권한은 supabase.sql의 규칙이 막아 줍니다.
 // Secret key(sb_secret_...)나 service_role 키는 절대 넣지 마세요.
 window.BINGO_CONFIG = {
-  supabaseUrl: "https://YOUR-PROJECT.supabase.co",
-  supabaseAnonKey: "YOUR-ANON-KEY"
+  supabaseUrl: "https://jxxcdgxwwmvsztwmxvrj.supabase.co/rest/v1/",
+  supabaseAnonKey: "sb_publishable_j82GsYNOeqXXLXlqh_ZBwA_Eh-8MDO3"
 };
