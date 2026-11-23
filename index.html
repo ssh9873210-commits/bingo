@@ -161,6 +161,8 @@ h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--mute
 .mini:hover { border-color: var(--accent); }
 .mini.sel { background: var(--accent); border-color: var(--accent); color: var(--surface); }
 .mini.fixed { cursor: not-allowed; opacity: .45; }
+.mini.isfree { color: var(--dauber); border-color: var(--dauber); font-weight: 700; font-size: 10px; }
+.mini.isfree.sel { background: var(--dauber); color: var(--surface); }
 .mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .swap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .shift-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin-top: 4px; }
@@ -266,12 +268,13 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       </section>
 
       <section class="card" id="swapCard">
-        <h2>칸 교환 · 줄 밀기</h2>
-        <p class="hint">모든 학생 판에서 위치가 똑같이 바뀌어요. 표시는 용어를 따라갑니다.</p>
-        <div class="sub-h">칸 교환</div>
+        <h2>칸 교환 · FREE · 줄 밀기</h2>
+        <p class="hint">모든 학생 판에서 위치가 똑같이 바뀌어요. 위치 하나를 고르면 FREE로 고정, 두 곳을 고르면 교환할 수 있어요. FREE 칸은 교환·밀기에 움직이지 않아요.</p>
+        <div class="sub-h">칸 교환 · FREE 고정</div>
         <div class="mini-wrap" id="mini"></div>
         <div class="swap-row">
           <button class="b primary small" id="swapBtn" type="button" disabled>교환</button>
+          <button class="b small" id="freeBtn" type="button" disabled>FREE로 고정</button>
           <span class="hint" id="swapSel" style="margin:0"></span>
         </div>
         <div class="sub-h">줄 밀기 (한 칸씩, 끝 칸은 반대쪽으로)</div>
@@ -321,7 +324,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
   };
   const TABLE = "game_state", ROW_ID = 1;
-  const APP_VERSION = 7;  // raise when the page changes; older open pages reload themselves
+  const APP_VERSION = 8;  // raise when the page changes; older open pages reload themselves
   function reloadIfOutdated(next) {
     const v = next && Number(next.app) || 0;
     if (v <= APP_VERSION) return false;
@@ -362,7 +365,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       terms: Array.isArray(g.terms) ? g.terms.filter(t => typeof t === "string") : [],
       removed: Array.isArray(g.removed) ? g.removed : [],
       // Position changes in order: {t:"swap",a,b} or {t:"row"|"col",i,d} (d = 1 right/down, -1 left/up).
-      moves: Array.isArray(g.moves) ? g.moves.filter(m => m && (m.t === "swap" || m.t === "row" || m.t === "col"))
+      moves: Array.isArray(g.moves) ? g.moves.filter(m => m && ["swap", "row", "col", "free", "unfree"].includes(m.t))
         : Array.isArray(g.swaps) ? g.swaps.filter(s => Array.isArray(s) && s.length === 2).map(([a, b]) => ({ t: "swap", a, b })) : []
     };
   }
@@ -396,25 +399,38 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     const picked = pool.slice(0, need());
     const arr = []; let k = 0;
     for (let i = 0; i < 25; i++) arr.push(G.free && i === 12 ? null : (picked[k++] ?? ""));
-    G.moves.forEach(m => applyMove(arr, m));
-    return arr;
+    const fixed = freeSet([]);
+    G.moves.forEach(m => applyMove(arr, m, fixed));
+    // A FREE position hides the term under it; the term comes back if the FREE is lifted.
+    return arr.map((t, i) => fixed.has(i) ? null : t);
+  }
+  // FREE positions after the given moves (all moves when none are given).
+  function freeSet(moves) {
+    const f = new Set(G.free ? [12] : []);
+    (moves || []).forEach(m => { if (m.t === "free") f.add(m.p); else if (m.t === "unfree" && !(G.free && m.p === 12)) f.delete(m.p); });
+    return f;
   }
   const lineOf = m => [0,1,2,3,4].map(k => m.t === "row" ? m.i * 5 + k : k * 5 + m.i);
-  function applyMove(arr, m) {
+  function applyMove(arr, m, fixed) {
+    if (m.t === "free") { fixed.add(m.p); return; }
+    if (m.t === "unfree") { if (!(G.free && m.p === 12)) fixed.delete(m.p); return; }
+    const movable = i => arr[i] !== null && !fixed.has(i);
     if (m.t === "swap") {
-      if (arr[m.a] !== null && arr[m.b] !== null) [arr[m.a], arr[m.b]] = [arr[m.b], arr[m.a]];
+      if (movable(m.a) && movable(m.b)) [arr[m.a], arr[m.b]] = [arr[m.b], arr[m.a]];
       return;
     }
-    // Rotate the line by one; a FREE cell stays where it is and the others move around it.
-    const idx = lineOf(m).filter(i => arr[i] !== null);
+    // Rotate the line by one; FREE cells stay where they are and the others move around them.
+    const idx = lineOf(m).filter(movable);
     const vals = idx.map(i => arr[i]);
     const rot = m.d > 0 ? [vals[vals.length - 1], ...vals.slice(0, -1)] : [...vals.slice(1), vals[0]];
     idx.forEach((i, k) => { arr[i] = rot[k]; });
   }
   const moveText = m => m.t === "swap" ? pos(m.a) + " ↔ " + pos(m.b)
+    : m.t === "free" ? pos(m.p) + " FREE 고정"
+    : m.t === "unfree" ? pos(m.p) + " FREE 해제"
     : m.t === "row" ? (m.i + 1) + "행을 " + (m.d > 0 ? "오른쪽" : "왼쪽") + "으로 한 칸"
     : (m.i + 1) + "열을 " + (m.d > 0 ? "아래" : "위") + "로 한 칸";
-  const moveCells = m => m.t === "swap" ? [m.a, m.b] : lineOf(m);
+  const moveCells = m => m.t === "swap" ? [m.a, m.b] : (m.t === "free" || m.t === "unfree") ? [m.p] : lineOf(m);
   const slideClass = m => m.t === "row" ? (m.d > 0 ? "slide-r" : "slide-l") : m.t === "col" ? (m.d > 0 ? "slide-d" : "slide-u") : "";
   let lastLines = 0;
   let cells = [];
@@ -505,14 +521,16 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       if (G.moves.length > prev.moves.length) {
         const m = G.moves[G.moves.length - 1];
         note = m.t === "swap" ? "진행자가 <b>" + pos(m.a) + "</b> 칸과 <b>" + pos(m.b) + "</b> 칸을 바꿨어요."
+          : m.t === "free" ? "<b>" + pos(m.p) + "</b> 칸이 <b>FREE</b>가 됐어요!"
+          : m.t === "unfree" ? "<b>" + pos(m.p) + "</b> 칸의 FREE가 해제됐어요."
           : "진행자가 <b>" + moveText(m) + "</b> 밀었어요.";
         moveCells(m).forEach(i => flash.add(i));
-        if (m.t !== "swap") slide = { cells: moveCells(m), cls: slideClass(m) };
+        if (m.t === "row" || m.t === "col") slide = { cells: moveCells(m), cls: slideClass(m) };
       } else if (G.moves.length < prev.moves.length) {
         const m = prev.moves[prev.moves.length - 1];
         note = "진행자가 <b>" + moveText(m) + "</b> 변경을 되돌렸어요.";
         moveCells(m).forEach(i => flash.add(i));
-        if (m.t !== "swap") slide = { cells: moveCells(m), cls: slideClass({ ...m, d: -m.d }) };
+        if (m.t === "row" || m.t === "col") slide = { cells: moveCells(m), cls: slideClass({ ...m, d: -m.d }) };
       }
       if (newly.length) note = "진행자가 <b>" + newly.map(esc).join(", ") + "</b> 칸을 없앴어요.";
       if (back.length) note = "<b>" + back.map(esc).join(", ") + "</b> 칸을 다시 쓸 수 있어요.";
@@ -625,7 +643,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
           b.type = "button"; b.className = "mini"; b.dataset.i = i; b.textContent = (r + 1) + "-" + (c + 1);
           b.setAttribute("aria-label", pos(i));
           b.addEventListener("click", () => {
-            if (G.free && i === 12) return;
+            if (G.free && i === 12) return;  // the starting FREE centre stays fixed
             const k = selected.indexOf(i);
             if (k >= 0) selected.splice(k, 1); else { selected.push(i); if (selected.length > 2) selected.shift(); }
             renderHost();
@@ -634,12 +652,18 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
         }
       }
     }
+    const frees = freeSet(G.moves);
     mini.querySelectorAll(".mini").forEach(b => {
-      const i = +b.dataset.i;
-      b.className = "mini" + (selected.includes(i) ? " sel" : "") + (G.free && i === 12 ? " fixed" : "");
+      const i = +b.dataset.i, r = Math.floor(i / 5), c = i % 5;
+      b.textContent = frees.has(i) ? "FREE" : (r + 1) + "-" + (c + 1);
+      b.className = "mini" + (selected.includes(i) ? " sel" : "") + (G.free && i === 12 ? " fixed" : "") + (frees.has(i) ? " isfree" : "");
     });
-    $("swapBtn").disabled = selected.length !== 2;
-    $("swapSel").textContent = selected.length ? selected.map(pos).join(" ↔ ") : "";
+    $("swapBtn").disabled = selected.length !== 2 || selected.some(i => frees.has(i));
+    const one = selected.length === 1 ? selected[0] : null;
+    $("freeBtn").disabled = one === null;
+    $("freeBtn").textContent = one !== null && frees.has(one) ? "FREE 해제" : "FREE로 고정";
+    $("swapSel").textContent = selected.some(i => frees.has(i)) && selected.length === 2 ? "FREE 칸은 교환할 수 없어요"
+      : selected.length ? selected.map(pos).join(" ↔ ") : "";
     $("undoSwapBtn").disabled = !G.moves.length;
     if (!$("shiftRows").children.length) {
       const mk = (box, t, i, label, dirs) => {
@@ -663,6 +687,12 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     if (selected.length !== 2 || needStart()) return;
     const [a, b] = selected; selected = [];
     pushState({ ...G, moves: [...G.moves, { t: "swap", a, b }] });
+  });
+  $("freeBtn").addEventListener("click", () => {
+    if (selected.length !== 1 || needStart()) return;
+    const p = selected[0]; selected = [];
+    const t = freeSet(G.moves).has(p) ? "unfree" : "free";
+    pushState({ ...G, moves: [...G.moves, { t, p }] });
   });
   $("undoSwapBtn").addEventListener("click", () => { if (G.moves.length) pushState({ ...G, moves: G.moves.slice(0, -1) }); });
 
