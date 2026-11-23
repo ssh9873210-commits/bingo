@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>빙고</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+html, body { margin: 0; }
+[hidden] { display: none !important; }
+
+/* Layout: the student's board is the hero; the host sees a control column beside it (stacks on phones). */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --ink: #1a2140;
+  --muted: #5d6685;
+  --line: #d5dae6;
+  --accent: #2f55d4;
+  --accent-soft: rgba(47, 85, 212, .12);
+  --dauber: #e0306a;
+  --dauber-soft: rgba(224, 48, 106, .22);
+  --win: #0f8a5f;
+  --win-soft: rgba(15, 138, 95, .12);
+  --blocked: #8a90a6;
+  --font-display: "Black Han Sans", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121522; --surface: #1b2033; --ink: #e8ebf5; --muted: #9aa3c0; --line: #2e3550;
+    --accent: #7d98ff; --accent-soft: rgba(125, 152, 255, .16); --dauber: #ff5c8f; --dauber-soft: rgba(255, 92, 143, .26);
+    --win: #3fd39b; --win-soft: rgba(63, 211, 155, .14); --blocked: #6b7290; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121522; --surface: #1b2033; --ink: #e8ebf5; --muted: #9aa3c0; --line: #2e3550;
+  --accent: #7d98ff; --accent-soft: rgba(125, 152, 255, .16); --dauber: #ff5c8f; --dauber-soft: rgba(255, 92, 143, .26);
+  --win: #3fd39b; --win-soft: rgba(63, 211, 155, .14); --blocked: #6b7290; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 24px 48px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.sub { color: var(--muted); margin: 4px 0 0; font-size: 14px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; letter-spacing: .04em; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); background: var(--surface); }
+.pill.example { color: var(--dauber); border-color: var(--dauber); }
+.pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--win); }
+.pill.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
+
+.banner { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+.banner b { color: var(--accent); }
+
+.grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; max-width: 680px; width: 100%; margin: 0 auto; }
+.grid.host { grid-template-columns: minmax(0, 1fr) 380px; max-width: none; }
+@media (max-width: 900px) { .grid.host { grid-template-columns: minmax(0, 1fr); } }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; min-width: 0; }
+.board-card { padding: clamp(10px, 2.4vw, 22px); }
+.letters, .board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(4px, 1vw, 8px); }
+.letters { margin-bottom: 8px; }
+.letters span { font-family: var(--font-display); font-size: clamp(22px, 5vw, 36px); text-align: center; color: var(--accent); line-height: 1; }
+.cell {
+  position: relative; aspect-ratio: 1; max-width: 100%; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg);
+  color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; padding: 4px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  word-break: keep-all; overflow-wrap: anywhere; line-height: 1.25;
+  font-size: clamp(11px, 2.1vw, 16px); transition: border-color .15s, background .15s;
+}
+.cell.s { font-size: clamp(10px, 1.7vw, 14px); }
+.cell.xs { font-size: clamp(9px, 1.4vw, 12px); }
+.cell:hover { border-color: var(--accent); }
+.cell:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.cell .t { position: relative; z-index: 1; }
+.cell::before {
+  content: ""; position: absolute; inset: 10%; border-radius: 50%; background: var(--dauber-soft);
+  box-shadow: inset 0 0 0 2px var(--dauber); transform: scale(0) rotate(-12deg); transition: transform .18s cubic-bezier(.3,1.6,.6,1);
+}
+.cell.on::before { transform: scale(1) rotate(0); }
+.cell.won { border-color: var(--win); background: var(--win-soft); }
+.cell.free { cursor: default; font-family: var(--font-display); font-weight: 400; letter-spacing: .06em; color: var(--dauber); }
+.cell.blocked {
+  cursor: not-allowed; color: var(--blocked); border-style: dashed;
+  background: repeating-linear-gradient(135deg, transparent 0 7px, var(--line) 7px 8px), var(--bg);
+}
+.cell.blocked .t { text-decoration: line-through; }
+.cell.blocked::before { display: none; }
+.cell.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 4px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+.board.shuffle .cell { animation: flip .35s ease-out both; }
+@keyframes flip { from { transform: rotateY(90deg); opacity: .2 } to { transform: none; opacity: 1 } }
+.board-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.score { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 14px; color: var(--muted); }
+.score b { font-size: 22px; color: var(--ink); }
+.score.hit b { color: var(--win); }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button.b { font: inherit; font-size: 14px; font-weight: 700; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+button.b:hover { border-color: var(--accent); }
+button.b.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+button.b.small { font-size: 13px; padding: 5px 10px; }
+button.b:disabled { opacity: .5; cursor: not-allowed; }
+button.b:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.stamp { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; z-index: 5; }
+.stamp span {
+  font-family: var(--font-display); font-size: clamp(48px, 12vw, 110px); color: var(--dauber); border: 6px solid var(--dauber);
+  padding: 0 .3em; border-radius: 16px; transform: rotate(-10deg); background: color-mix(in srgb, var(--surface) 80%, transparent);
+  animation: stamp .9s ease-out forwards;
+}
+@keyframes stamp { 0% { transform: rotate(-10deg) scale(2.2); opacity: 0 } 25% { transform: rotate(-10deg) scale(1); opacity: 1 } 80% { opacity: 1 } 100% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .cell::before { transition: none } .stamp span { animation: none; opacity: 0 } .board.shuffle .cell, .cell.flash { animation: none } }
+.board-wrap { position: relative; }
+
+/* Host panel */
+.host-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 13px; font-weight: 700; letter-spacing: .08em; color: var(--muted); margin: 0 0 4px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; max-height: 260px; overflow-y: auto; }
+.chip { font: inherit; font-size: 13px; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); cursor: pointer; }
+.chip:hover { border-color: var(--dauber); }
+.chip.off { color: var(--blocked); text-decoration: line-through; border-style: dashed; }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mini-wrap { display: grid; grid-template-columns: 28px repeat(5, minmax(0, 1fr)); gap: 4px; max-width: 280px; }
+.mini-wrap .lab { font-family: var(--font-mono); font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.mini { aspect-ratio: 1; border: 1.5px solid var(--line); border-radius: 6px; background: var(--bg); font-family: var(--font-mono); font-size: 11px; color: var(--muted); cursor: pointer; padding: 0; }
+.mini:hover { border-color: var(--accent); }
+.mini.sel { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.mini.fixed { cursor: not-allowed; opacity: .45; }
+.mini:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.swap-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.history { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+label.f { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+input[type=text], textarea { width: 100%; font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+textarea { min-height: 200px; resize: vertical; line-height: 1.5; }
+input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.form { display: flex; flex-direction: column; gap: 12px; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.count { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); margin-top: 4px; }
+.count.bad { color: var(--dauber); }
+.msg { font-size: 13px; min-height: 1.2em; margin: 0; color: var(--win); }
+.msg.err { color: var(--dauber); }
+.confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--dauber); font-weight: 700; }
+
+.login { display: flex; flex-direction: column; gap: 10px; }
+.login input[type=email], .login input[type=password] { width: 100%; font: inherit; font-size: 14px; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.host-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--muted); }
+code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1 id="title">빙고</h1>
+      <p class="sub" id="sub">칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!</p>
+    </div>
+    <div class="pills">
+      <span class="pill example" id="examplePill" hidden>게임 시작 전</span>
+      <span class="pill off" id="livePill">연결 중</span>
+    </div>
+  </header>
+
+  <div class="banner" id="banner" role="status" aria-live="polite" hidden></div>
+
+  <div class="grid" id="grid">
+    <section class="card board-card" aria-label="내 빙고판">
+      <div class="letters" aria-hidden="true"><span>B</span><span>I</span><span>N</span><span>G</span><span>O</span></div>
+      <div class="board-wrap">
+        <div class="board" id="board"></div>
+        <div class="stamp" id="stamp" hidden><span>BINGO</span></div>
+      </div>
+      <div class="board-foot">
+        <div class="score" id="score"></div>
+        <div class="btns"><button class="b" id="clearBtn" type="button">내 표시 지우기</button></div>
+      </div>
+    </section>
+
+    <div class="host-col" id="loginCol" hidden>
+      <section class="card">
+        <h2>진행자 로그인</h2>
+        <p class="hint">진행자 계정으로 로그인하면 칸 없애기, 칸 교환, 새 게임을 할 수 있어요.</p>
+        <form class="login" id="loginForm">
+          <label class="f" for="lEmail">이메일</label>
+          <input type="email" id="lEmail" autocomplete="username" required>
+          <label class="f" for="lPw">비밀번호</label>
+          <input type="password" id="lPw" autocomplete="current-password" required>
+          <button class="b primary" type="submit" id="loginBtn">로그인</button>
+          <p class="msg err" id="loginMsg"></p>
+        </form>
+      </section>
+    </div>
+
+    <div class="host-col" id="hostCol" hidden>
+      <div class="host-top"><span id="hostWho"></span><button class="b small" id="logoutBtn" type="button">로그아웃</button></div>
+      <section class="card">
+        <h2>용어 없애기</h2>
+        <p class="hint">누른 용어의 칸이 모든 학생 화면에서 바로 막혀요. 다시 누르면 되살아납니다.</p>
+        <div class="chips" id="chips"></div>
+      </section>
+
+      <section class="card">
+        <h2>칸 교환</h2>
+        <p class="hint">위치 두 곳을 고르고 교환을 누르면 모든 학생 판에서 그 두 칸이 바뀌어요. 표시는 용어를 따라갑니다.</p>
+        <div class="mini-wrap" id="mini"></div>
+        <div class="swap-row">
+          <button class="b primary small" id="swapBtn" type="button" disabled>교환</button>
+          <button class="b small" id="undoSwapBtn" type="button" disabled>마지막 교환 되돌리기</button>
+          <span class="hint" id="swapSel" style="margin:0"></span>
+        </div>
+        <ol class="history" id="history"></ol>
+      </section>
+
+      <section class="card">
+        <h2>새 게임</h2>
+        <p class="hint">용어를 바꾸고 시작하면 모든 학생의 판이 새로 섞이고 표시·없앤 칸·교환이 초기화돼요.</p>
+        <form class="form" id="hostForm">
+          <div>
+            <label class="f" for="fTitle">빙고 제목</label>
+            <input type="text" id="fTitle" maxlength="60">
+          </div>
+          <div>
+            <label class="f" for="fTerms">용어 (한 줄에 하나, 또는 쉼표로 구분)</label>
+            <textarea id="fTerms" spellcheck="false"></textarea>
+            <div class="count" id="fCount"></div>
+          </div>
+          <label class="check"><input type="checkbox" id="fFree"> 가운데 칸을 FREE로</label>
+          <button class="b primary" id="startBtn" type="submit">새 게임 시작</button>
+          <div class="confirm" id="confirmRow" hidden>
+            진행 중인 게임이 초기화돼요.
+            <button class="b small primary" id="confirmYes" type="button">시작</button>
+            <button class="b small" id="confirmNo" type="button">취소</button>
+          </div>
+          <p class="msg" id="msg"></p>
+        </form>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+  const DEFAULT = {
+    title: "빙고", free: false, round: 0, removed: [], swaps: [], example: true,
+    terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
+  };
+  const TABLE = "game_state", ROW_ID = 1;
+  const LINES = [];
+  for (let r = 0; r < 5; r++) LINES.push([0,1,2,3,4].map(c => r*5+c));
+  for (let c = 0; c < 5; c++) LINES.push([0,1,2,3,4].map(r => r*5+c));
+  LINES.push([0,6,12,18,24], [4,8,12,16,20]);
+  const pos = i => (Math.floor(i / 5) + 1) + "행 " + (i % 5 + 1) + "열";
+
+  const $ = id => document.getElementById(id);
+  const ls = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+  };
+  function hash(str) {
+    let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) { const ch = str.charCodeAt(i); h1 = Math.imul(h1 ^ ch, 2654435761); h2 = Math.imul(h2 ^ ch, 1597334677); }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    return h1 >>> 0;
+  }
+  function rng(seed) { let a = seed; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  // ---- shared game state (written by the host) ----
+  let G = normalize(DEFAULT);
+  function normalize(g) {
+    g = g || {};
+    return {
+      title: g.title || "빙고", free: !!g.free, round: g.round || 0, example: !!g.example,
+      terms: Array.isArray(g.terms) ? g.terms.filter(t => typeof t === "string") : [],
+      removed: Array.isArray(g.removed) ? g.removed : [],
+      swaps: Array.isArray(g.swaps) ? g.swaps.filter(s => Array.isArray(s) && s.length === 2) : []
+    };
+  }
+  const need = () => G.free ? 24 : 25;
+  const gameSig = () => String(hash(G.round + "|" + G.free + "|" + G.terms.join("\u0001")));
+
+  // ---- my board (kept only in this browser) ----
+  const KEY = "bingo.v3";
+  let me = null;
+  function ensureMine() {
+    const sig = gameSig();
+    if (!me || me.sig !== sig) {
+      const saved = ls.get(KEY);
+      me = saved && saved.sig === sig ? saved : { sig, seed: Math.floor(Math.random() * 4294967296), marks: [] };
+      ls.set(KEY, me);
+      return true;
+    }
+    return false;
+  }
+  const saveMine = () => ls.set(KEY, me);
+
+  function layout() {
+    const r = rng(me.seed);
+    const pool = G.terms.slice();
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+    const picked = pool.slice(0, need());
+    const arr = []; let k = 0;
+    for (let i = 0; i < 25; i++) arr.push(G.free && i === 12 ? null : (picked[k++] ?? ""));
+    G.swaps.forEach(([a, b]) => { if (arr[a] !== null && arr[b] !== null) [arr[a], arr[b]] = [arr[b], arr[a]]; });
+    return arr;
+  }
+  let cells = [];
+  const isBlocked = i => cells[i] !== null && G.removed.includes(cells[i]);
+  const isOn = i => cells[i] === null || (!isBlocked(i) && me.marks.includes(cells[i]));
+  const completed = () => LINES.filter(l => l.every(isOn));
+  let lastLines = 0;
+
+  function renderAll(flashIdx) {
+    $("title").textContent = G.title;
+    document.title = G.title;
+    $("examplePill").hidden = !G.example;
+    cells = layout();
+    const board = $("board");
+    if (board.children.length !== 25) {
+      for (let i = 0; i < 25; i++) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "cell";
+        b.innerHTML = '<span class="t"></span>';
+        b.addEventListener("click", () => toggle(i));
+        board.appendChild(b);
+      }
+    }
+    const won = new Set(completed().flat());
+    [...board.children].forEach((b, i) => {
+      const free = cells[i] === null, blocked = isBlocked(i);
+      const term = free ? "FREE" : cells[i];
+      b.querySelector(".t").textContent = term;
+      const len = [...term].length;
+      b.className = "cell" + (free ? " free" : "") + (blocked ? " blocked" : "") + (isOn(i) ? " on" : "") + (won.has(i) ? " won" : "") + (len > 12 ? " xs" : len > 7 ? " s" : "");
+      b.disabled = free || blocked;
+      b.setAttribute("aria-pressed", String(isOn(i)));
+      b.setAttribute("aria-label", pos(i) + " " + term + (blocked ? ", 사용할 수 없음" : isOn(i) ? ", 표시됨" : ""));
+      if (flashIdx && flashIdx.has(i)) { b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash"); }
+    });
+    const lines = completed().length;
+    const marked = cells.filter((_, i) => isOn(i)).length;
+    const sc = $("score");
+    sc.className = "score" + (lines ? " hit" : "");
+    sc.innerHTML = "<b>" + lines + "</b> 줄 완성 · " + marked + "/25칸";
+    if (lines > lastLines) stamp();
+    lastLines = lines;
+    if (isHost) renderHost();
+  }
+  function stamp() {
+    const s = $("stamp"); s.hidden = false;
+    const span = s.firstElementChild; span.style.animation = "none"; void span.offsetWidth; span.style.animation = "";
+    clearTimeout(stamp.t); stamp.t = setTimeout(() => { s.hidden = true; }, 950);
+  }
+  function toggle(i) {
+    if (cells[i] === null || isBlocked(i)) return;
+    const t = cells[i], k = me.marks.indexOf(t);
+    k >= 0 ? me.marks.splice(k, 1) : me.marks.push(t);
+    saveMine(); renderAll();
+  }
+  $("clearBtn").addEventListener("click", () => { me.marks = []; lastLines = 0; saveMine(); renderAll(); });
+
+  let bannerTimer;
+  function announce(html) {
+    const b = $("banner"); b.innerHTML = html; b.hidden = false;
+    clearTimeout(bannerTimer); bannerTimer = setTimeout(() => { b.hidden = true; }, 6000);
+  }
+
+  // Apply a new shared state; tell the student what changed.
+  function applyState(next, announceChanges) {
+    const prev = G;
+    G = normalize(next);
+    const reset = ensureMine();
+    if (reset) lastLines = 0;
+    const flash = new Set();
+    let note = "";
+    if (announceChanges && !reset) {
+      const newly = G.removed.filter(t => !prev.removed.includes(t));
+      const back = prev.removed.filter(t => !G.removed.includes(t));
+      if (G.swaps.length > prev.swaps.length) {
+        const [a, b] = G.swaps[G.swaps.length - 1];
+        note = "진행자가 <b>" + pos(a) + "</b> 칸과 <b>" + pos(b) + "</b> 칸을 바꿨어요.";
+        flash.add(a); flash.add(b);
+      } else if (G.swaps.length < prev.swaps.length) {
+        const [a, b] = prev.swaps[prev.swaps.length - 1];
+        note = "진행자가 <b>" + pos(a) + "</b> ↔ <b>" + pos(b) + "</b> 교환을 되돌렸어요.";
+        flash.add(a); flash.add(b);
+      }
+      if (newly.length) note = "진행자가 <b>" + newly.map(esc).join(", ") + "</b> 칸을 없앴어요.";
+      if (back.length) note = "<b>" + back.map(esc).join(", ") + "</b> 칸을 다시 쓸 수 있어요.";
+      const nextCells = layout();
+      [...newly, ...back].forEach(t => { const i = nextCells.indexOf(t); if (i >= 0) flash.add(i); });
+    } else if (announceChanges && reset && !G.example) {
+      note = "새 게임이 시작됐어요. 판이 새로 섞였습니다.";
+    }
+    renderAll(flash);
+    if (reset && announceChanges) { const bd = $("board"); bd.classList.remove("shuffle"); void bd.offsetWidth; bd.classList.add("shuffle"); }
+    if (note) announce(note);
+  }
+
+  // ---- Supabase connection ----
+  const live = $("livePill");
+  function setLive(on, text) { live.className = "pill " + (on ? "live" : "off"); live.textContent = text; }
+  const cfg = window.BINGO_CONFIG || {};
+  const configured = window.supabase && cfg.supabaseUrl && cfg.supabaseAnonKey && !/YOUR-/.test(cfg.supabaseUrl + cfg.supabaseAnonKey);
+  let sb = null, isHost = false;
+
+  async function fetchState(announceChanges) {
+    const { data, error } = await sb.from(TABLE).select("data").eq("id", ROW_ID).maybeSingle();
+    if (error) { setLive(false, "연결 안 됨"); return; }
+    if (data && data.data) {
+      $("sub").textContent = "칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!";
+      applyState(data.data, announceChanges);
+      if (isHost && !$("hostForm").contains(document.activeElement)) fillForm();
+    } else {
+      $("sub").textContent = isHost ? "아래에서 용어를 정하고 새 게임을 시작하세요." : "진행자가 아직 게임을 시작하지 않았어요. 지금은 기본 용어로 보여드려요.";
+    }
+  }
+
+  // ---- host controls ----
+  let selected = [], writing = false, pendingState = null;
+  function pushState(next) {
+    applyState(next, false);
+    pendingState = { ...G }; delete pendingState.example;
+    flushWrite();
+  }
+  async function flushWrite() {
+    if (writing || !pendingState) return;
+    writing = true;
+    const s = pendingState; pendingState = null;
+    const { data, error } = await sb.from(TABLE).upsert({ id: ROW_ID, data: s, updated_at: new Date().toISOString() }).select("id");
+    if (error || !data || !data.length) setMsg("학생 화면에 반영하지 못했어요. 진행자 계정이 game_hosts에 등록돼 있는지 확인해 주세요.", true);
+    writing = false;
+    flushWrite();
+  }
+  function setMsg(t, err) { const m = $("msg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); }
+  const needStart = () => { if (G.example) { setMsg("먼저 아래에서 새 게임을 시작해 주세요.", true); return true; } return false; };
+
+  function renderHost() {
+    const chips = $("chips");
+    chips.innerHTML = "";
+    G.terms.forEach(t => {
+      const c = document.createElement("button");
+      c.type = "button"; c.className = "chip" + (G.removed.includes(t) ? " off" : "");
+      c.textContent = t; c.setAttribute("aria-pressed", String(G.removed.includes(t)));
+      c.addEventListener("click", () => {
+        if (needStart()) return;
+        const removed = G.removed.includes(t) ? G.removed.filter(x => x !== t) : [...G.removed, t];
+        pushState({ ...G, removed });
+      });
+      chips.appendChild(c);
+    });
+    const mini = $("mini");
+    if (!mini.children.length) {
+      mini.appendChild(Object.assign(document.createElement("span"), { className: "lab" }));
+      for (let c = 1; c <= 5; c++) mini.appendChild(Object.assign(document.createElement("span"), { className: "lab", textContent: c + "열" }));
+      for (let r = 0; r < 5; r++) {
+        mini.appendChild(Object.assign(document.createElement("span"), { className: "lab", textContent: (r + 1) + "행" }));
+        for (let c = 0; c < 5; c++) {
+          const i = r * 5 + c, b = document.createElement("button");
+          b.type = "button"; b.className = "mini"; b.dataset.i = i; b.textContent = (r + 1) + "-" + (c + 1);
+          b.setAttribute("aria-label", pos(i));
+          b.addEventListener("click", () => {
+            if (G.free && i === 12) return;
+            const k = selected.indexOf(i);
+            if (k >= 0) selected.splice(k, 1); else { selected.push(i); if (selected.length > 2) selected.shift(); }
+            renderHost();
+          });
+          mini.appendChild(b);
+        }
+      }
+    }
+    mini.querySelectorAll(".mini").forEach(b => {
+      const i = +b.dataset.i;
+      b.className = "mini" + (selected.includes(i) ? " sel" : "") + (G.free && i === 12 ? " fixed" : "");
+    });
+    $("swapBtn").disabled = selected.length !== 2;
+    $("swapSel").textContent = selected.length ? selected.map(pos).join(" ↔ ") : "";
+    $("undoSwapBtn").disabled = !G.swaps.length;
+    const h = $("history"); h.innerHTML = "";
+    G.swaps.forEach(([a, b], n) => { const li = document.createElement("li"); li.textContent = (n + 1) + ". " + pos(a) + " ↔ " + pos(b); h.appendChild(li); });
+  }
+  $("swapBtn").addEventListener("click", () => {
+    if (selected.length !== 2 || needStart()) return;
+    const [a, b] = selected; selected = [];
+    pushState({ ...G, swaps: [...G.swaps, [a, b]] });
+  });
+  $("undoSwapBtn").addEventListener("click", () => { if (G.swaps.length) pushState({ ...G, swaps: G.swaps.slice(0, -1) }); });
+
+  function parseTerms(text) {
+    const seen = new Set(), out = [];
+    text.split(/[\n,]/).map(s => s.trim()).filter(Boolean).forEach(t => { if (!seen.has(t)) { seen.add(t); out.push(t); } });
+    return out;
+  }
+  function updateCount() {
+    const n = parseTerms($("fTerms").value).length, nd = $("fFree").checked ? 24 : 25;
+    const el = $("fCount");
+    el.textContent = "용어 " + n + "개 · 최소 " + nd + "개 필요" + (n < nd ? " · " + (nd - n) + "개 더 입력하세요" : n > nd ? " · 학생마다 " + nd + "개를 무작위로 뽑음" : "");
+    el.className = "count" + (n < nd ? " bad" : "");
+    $("startBtn").disabled = n < nd;
+  }
+  function fillForm() { $("fTitle").value = G.title; $("fTerms").value = G.terms.join("\n"); $("fFree").checked = G.free; updateCount(); }
+  $("fTerms").addEventListener("input", updateCount);
+  $("fFree").addEventListener("change", updateCount);
+  function startGame() {
+    const terms = parseTerms($("fTerms").value), free = $("fFree").checked;
+    if (terms.length < (free ? 24 : 25)) return;
+    $("confirmRow").hidden = true; selected = [];
+    pushState({ title: $("fTitle").value.trim() || "빙고", terms, free, round: (G.round || 0) + 1, removed: [], swaps: [] });
+    setMsg("새 게임을 시작했어요.");
+  }
+  $("hostForm").addEventListener("submit", e => { e.preventDefault(); if (G.example) startGame(); else $("confirmRow").hidden = false; });
+  $("confirmYes").addEventListener("click", startGame);
+  $("confirmNo").addEventListener("click", () => { $("confirmRow").hidden = true; });
+
+  // ---- host login (open the page with #host) ----
+  function showHostUI(session) {
+    isHost = !!session;
+    $("hostCol").hidden = !isHost;
+    $("loginCol").hidden = isHost || location.hash !== "#host";
+    $("grid").classList.toggle("host", isHost || location.hash === "#host");
+    if (isHost) { $("hostWho").textContent = "진행자: " + (session.user.email || ""); fillForm(); renderHost(); }
+  }
+  $("loginForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    if (!sb) return;
+    $("loginMsg").textContent = ""; $("loginBtn").disabled = true;
+    const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPw").value });
+    $("loginBtn").disabled = false;
+    if (error) $("loginMsg").textContent = "로그인하지 못했어요. 이메일과 비밀번호를 확인해 주세요.";
+  });
+  $("logoutBtn").addEventListener("click", () => sb && sb.auth.signOut());
+  window.addEventListener("hashchange", async () => { if (sb) { const { data } = await sb.auth.getSession(); showHostUI(data.session); } });
+
+  // ---- boot ----
+  ensureMine(); renderAll();
+  if (!configured) {
+    setLive(false, "설정 필요");
+    $("sub").textContent = "config.js에 Supabase 주소와 키를 넣으면 진행자의 변경이 실시간으로 반영돼요. 지금은 기본 용어로 보여드려요.";
+    return;
+  }
+  sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  sb.auth.onAuthStateChange((_event, session) => showHostUI(session));
+  sb.auth.getSession().then(({ data }) => showHostUI(data.session));
+
+  let firstLoad = true;
+  fetchState(false).then(() => { firstLoad = false; });
+  sb.channel("bingo-game")
+    .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: "id=eq." + ROW_ID }, payload => {
+      if (payload.new && payload.new.data) {
+        $("sub").textContent = "칸을 눌러 표시하세요. 가로·세로·대각선 한 줄이 완성되면 빙고!";
+        applyState(payload.new.data, !isHost);
+      }
+    })
+    .subscribe(status => {
+      if (status === "SUBSCRIBED") { setLive(true, "실시간 연결됨"); if (!firstLoad) fetchState(!isHost); }
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setLive(false, "다시 연결 중");
+    });
+  // Catch up on anything missed while the tab was in the background.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchState(!isHost); });
+})();
+</script>
+</body>
+</html>
