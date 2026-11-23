@@ -64,7 +64,7 @@ h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 
 .pill.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
 
 .banner { position: fixed; z-index: 20; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); box-shadow: 0 6px 20px rgba(0,0,0,.15); background: var(--surface); }
-.banner { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
+.banner { display: flex; align-items: center; gap: 10px; background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--surface); border: 1px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
 .banner b { color: var(--accent); }
 
 .grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; max-width: 680px; width: 100%; margin: 0 auto; }
@@ -226,7 +226,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     </div>
 
     <div class="host-col" id="hostCol" hidden>
-      <div class="host-top"><span id="hostWho"></span><button class="b small" id="logoutBtn" type="button">로그아웃</button></div>
+      <div class="host-top"><span id="hostWho"></span><span id="appVer"></span><button class="b small" id="logoutBtn" type="button">로그아웃</button></div>
       <section class="card">
         <h2>게임 진행</h2>
         <p class="hint" id="phaseHint"></p>
@@ -296,6 +296,17 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     terms: ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반"]
   };
   const TABLE = "game_state", ROW_ID = 1;
+  const APP_VERSION = 4;  // raise when the page changes; older open pages reload themselves
+  function reloadIfOutdated(next) {
+    const v = next && Number(next.app) || 0;
+    if (v <= APP_VERSION) return false;
+    let tried = null; try { tried = sessionStorage.getItem("bingo.reloadedFor"); } catch {}
+    if (tried === String(v)) return false;
+    try { sessionStorage.setItem("bingo.reloadedFor", String(v)); } catch {}
+    // A new query string skips the browser's cached copy of the page.
+    location.replace(location.pathname + "?v=" + v + location.hash);
+    return true;
+  }
   const LINES = [];
   for (let r = 0; r < 5; r++) LINES.push([0,1,2,3,4].map(c => r*5+c));
   for (let c = 0; c < 5; c++) LINES.push([0,1,2,3,4].map(r => r*5+c));
@@ -436,6 +447,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
 
   // Apply a new shared state; tell the student what changed.
   function applyState(next, announceChanges) {
+    if (reloadIfOutdated(next)) return;
     const prev = G;
     G = normalize(next);
     const reset = ensureMine();
@@ -490,11 +502,12 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   }
 
   // ---- host controls ----
-  let selected = [], writing = false, pendingState = null;
+  let selected = [], writing = false, pendingState = null, writeTimer = null;
   function pushState(next) {
     applyState(next, false);
-    pendingState = { ...G }; delete pendingState.example;
-    flushWrite();
+    pendingState = { ...G, app: APP_VERSION }; delete pendingState.example;
+    // Several quick clicks become one save.
+    clearTimeout(writeTimer); writeTimer = setTimeout(flushWrite, 350);
   }
   async function flushWrite() {
     if (writing || !pendingState) return;
@@ -510,7 +523,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       setMsg(why + " (오류: " + m + ")", true);
     } else if ($("ctlMsg").classList.contains("err")) setMsg("");
     writing = false;
-    flushWrite();
+    if (pendingState) flushWrite();
   }
   function setMsg(t, err) { const m = $("ctlMsg"); m.textContent = t; m.className = "msg" + (err ? " err" : ""); }
   const needStart = () => { if (!playing()) { setMsg("칸 없애기와 교환은 게임을 시작한 뒤에 할 수 있어요.", true); return true; } return false; };
@@ -622,7 +635,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     $("hostCol").hidden = !isHost;
     $("loginCol").hidden = isHost || location.hash !== "#host";
     $("grid").classList.toggle("host", isHost || location.hash === "#host");
-    if (isHost) { $("hostWho").textContent = "진행자: " + (session.user.email || ""); fillForm(); renderHost(); }
+    if (isHost) { $("hostWho").textContent = "진행자: " + (session.user.email || ""); $("appVer").textContent = "화면 버전 " + APP_VERSION; fillForm(); renderHost(); }
     fitBoard();
   }
 
@@ -694,11 +707,14 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   }
   // Accept a pasted URL with extra paths such as /rest/v1/.
   const baseUrl = String(cfg.supabaseUrl).trim().replace(/\/(rest|auth|realtime)\/v1.*$/i, "").replace(/\/+$/, "");
-  sb = window.supabase.createClient(baseUrl, String(cfg.supabaseAnonKey).trim());
+  const hostMode = location.hash === "#host";
+  sb = window.supabase.createClient(baseUrl, String(cfg.supabaseAnonKey).trim(), {
+    auth: { persistSession: true, autoRefreshToken: hostMode, detectSessionInUrl: false }
+  });
   sb.auth.onAuthStateChange((_event, session) => showHostUI(session));
   sb.auth.getSession().then(({ data }) => showHostUI(data.session));
 
-  let firstLoad = true;
+  let firstLoad = true, wasDown = false;
   fetchState(false).then(() => { firstLoad = false; });
   sb.channel("bingo-game")
     .on("postgres_changes", { event: "*", schema: "public", table: TABLE, filter: "id=eq." + ROW_ID }, payload => {
@@ -708,11 +724,10 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
       }
     })
     .subscribe(status => {
-      if (status === "SUBSCRIBED") { setLive(true, "실시간 연결됨"); if (!firstLoad) fetchState(!isHost); }
-      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setLive(false, "다시 연결 중");
+      // After a dropped connection comes back, read the state once to catch up.
+      if (status === "SUBSCRIBED") { setLive(true, "실시간 연결됨"); if (!firstLoad && wasDown) fetchState(!isHost); wasDown = false; }
+      else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") { wasDown = true; setLive(false, "다시 연결 중"); }
     });
-  // Catch up on anything missed while the tab was in the background.
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") fetchState(!isHost); });
 })();
 </script>
 </body>
