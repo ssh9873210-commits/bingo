@@ -57,6 +57,7 @@ h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 
 .pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--win); }
 .pill.off::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--blocked); }
 
+.banner { position: fixed; z-index: 20; top: calc(env(safe-area-inset-top, 0px) + 10px); left: 50%; transform: translateX(-50%); width: min(640px, calc(100% - 32px)); box-shadow: 0 6px 20px rgba(0,0,0,.15); background: var(--surface); }
 .banner { display: flex; align-items: center; gap: 10px; background: var(--accent-soft); border: 1px solid var(--accent); color: var(--ink); border-radius: 10px; padding: 10px 14px; font-size: 14px; font-weight: 500; }
 .banner b { color: var(--accent); }
 
@@ -69,7 +70,14 @@ h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 
 .letters, .board { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(4px, 1vw, 8px); }
 .letters { margin-bottom: 8px; }
 .letters span { font-family: var(--font-display); font-size: clamp(22px, 5vw, 36px); text-align: center; color: var(--accent); line-height: 1; }
+body.fit { padding-block: 12px; }
+body.fit .wrap { gap: 10px; }
+body.fit header { align-items: center; }
+body.fit h1 { font-size: clamp(24px, 4vw, 34px); }
+body.fit .sub { margin-top: 2px; font-size: 13px; }
+body.fit .board-foot { margin-top: 10px; }
 .cell {
+  touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent;
   position: relative; aspect-ratio: 1; max-width: 100%; border: 1.5px solid var(--line); border-radius: 8px; background: var(--bg);
   color: var(--ink); font: inherit; font-weight: 500; cursor: pointer; padding: 4px;
   display: flex; align-items: center; justify-content: center; text-align: center;
@@ -535,7 +543,32 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
     $("loginCol").hidden = isHost || location.hash !== "#host";
     $("grid").classList.toggle("host", isHost || location.hash === "#host");
     if (isHost) { $("hostWho").textContent = "진행자: " + (session.user.email || ""); fillForm(); renderHost(); }
+    fitBoard();
   }
+
+  // Student view: size the board so the whole page fits one screen without scrolling.
+  function fitBoard() {
+    const grid = $("grid");
+    const student = !grid.classList.contains("host");
+    document.body.classList.toggle("fit", student);
+    if (!student) { grid.style.maxWidth = ""; return; }
+    grid.style.maxWidth = "";
+    for (let pass = 0; pass < 2; pass++) {
+      const card = grid.querySelector(".board-card"), board = $("board");
+      const extraV = card.offsetHeight - board.offsetHeight;
+      const extraH = card.offsetWidth - board.offsetWidth;
+      const top = card.getBoundingClientRect().top + window.scrollY;
+      const bottomPad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+      const availH = window.innerHeight - top - bottomPad - 2;
+      const boardSize = Math.max(220, availH - extraV);
+      grid.style.maxWidth = Math.min(680, boardSize + extraH) + "px";
+    }
+  }
+  let fitTimer;
+  const refit = () => { clearTimeout(fitTimer); fitTimer = setTimeout(fitBoard, 80); };
+  window.addEventListener("resize", refit);
+  window.addEventListener("orientationchange", refit);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(refit);
   $("loginForm").addEventListener("submit", async e => {
     e.preventDefault();
     if (!sb) return;
@@ -557,7 +590,7 @@ code { font-family: var(--font-mono); font-size: 12px; background: var(--bg); pa
   window.addEventListener("hashchange", async () => { if (sb) { const { data } = await sb.auth.getSession(); showHostUI(data.session); } });
 
   // ---- boot ----
-  ensureMine(); renderAll();
+  ensureMine(); renderAll(); fitBoard();
   if (!configured) {
     setLive(false, "설정 필요");
     $("sub").textContent = "config.js에 Supabase 주소와 키를 넣으면 진행자의 변경이 실시간으로 반영돼요. 지금은 기본 용어로 보여드려요.";
