@@ -118,6 +118,11 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
 #game.portrait .targets { max-height: 22vh; }
 #game.portrait .chip { font-size: 13px; padding: 3px 8px; }
 .quit { align-self: flex-start; }
+.music-row { display: flex; justify-content: center; margin-top: 12px; }
+.music-btn { border: 2px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; font-family: var(--font-display); font-size: 15px; padding: 5px 14px; cursor: pointer; touch-action: manipulation; }
+.music-btn.off { color: var(--muted); text-decoration: line-through; }
+.music-btn:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+.music-fab { position: absolute; top: 10px; right: 10px; z-index: 6; box-shadow: 0 3px 0 rgba(43,42,76,.08); }
 #game.portrait .quit { display: none; }
 
 .field { position: relative; overflow: hidden; border-radius: 24px; background: rgba(255,255,255,.35); box-shadow: inset 0 0 0 3px rgba(255,255,255,.8); touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -200,10 +205,11 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
       </ol>
       <div class="rules">
         <span class="rule plus">정답 +10</span>
-        <span class="rule minus">오답 −5</span>
+        <span class="rule minus" id="ruleWrong">오답 −10</span>
         <span class="rule time" id="ruleTime">제한 시간 2분</span>
       </div>
       <button class="btn primary start" id="startBtn" type="button">게임 시작</button>
+      <div class="music-row"><button class="music-btn" id="musicIntro" type="button">♪ 배경음악 켜짐</button></div>
     </section>
     <section class="card">
       <h2>랭킹 TOP 15</h2>
@@ -245,6 +251,7 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
   </aside>
   <div class="field" id="field" aria-label="용어 풍선이 떠다니는 곳">
     <div class="count" id="count" hidden><span></span></div>
+    <button class="music-btn music-fab" id="musicBtn" type="button">♪ 켜짐</button>
   </div>
 </div>
 
@@ -287,7 +294,7 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
   // ====== 게임 설정 (선생님이 바꿀 수 있는 부분) ======
   const PASSWORD = "2026";
   const GAME_SECONDS = 120;
-  const POINT_RIGHT = 10, POINT_WRONG = -5;
+  const POINT_RIGHT = 10, POINT_WRONG = -10;
   const TARGET_RATIO = 0.5;      // 새로 나오는 풍선 중 정답 용어의 비율
   // 찾아야 할 정답 용어
   const TARGETS = ["마찰 전기","정전기","정전기 유도","전기력","대전","대전체","검전기","전류","A(암페어)","전압","V(볼트)","저항","Ω(옴)","옴의 법칙","도체","반도체","부도체","소비 전력","W(와트)","전기 에너지","자기력","자기장","코일","전자석","전동기","저항의 직렬연결","저항의 병렬연결","전자의 이동 방향","전류의 방향","나침반","V=IR"];
@@ -391,6 +398,116 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
   }
   loadRanking();
 
+  // ---------- background music ----------
+  // An original, bouncy 8-bit style loop played by the browser itself (no music files).
+  // C – Am – F – G, two 4-bar phrases; it speeds up a little in the last 20 seconds.
+  const Music = (() => {
+    const VOL = 0.22;
+    let ac = null, master = null, noise = null, timer = 0, step = 0, next = 0, playing = false, fast = false;
+    let muted = false; try { muted = localStorage.getItem("word.music") === "off"; } catch {}
+    const hz = n => 440 * Math.pow(2, (n - 69) / 12);
+    // [start step (16th note), MIDI note, length in 16ths]
+    const BARS = [
+      { root: 48, tri: [0, 4, 7],  mel: [[0,76,2],[2,79,2],[4,81,2],[6,79,2],[8,76,2],[10,74,2],[12,72,3],[15,74,1]] },
+      { root: 45, tri: [0, 3, 7],  mel: [[0,76,2],[2,76,2],[4,79,2],[6,81,2],[8,84,4],[12,81,2],[14,79,2]] },
+      { root: 41, tri: [0, 4, 7],  mel: [[0,81,2],[2,79,2],[4,77,2],[6,76,2],[8,77,2],[10,81,2],[12,84,4]] },
+      { root: 43, tri: [0, 4, 7],  mel: [[0,83,2],[2,81,2],[4,79,2],[6,74,2],[8,79,6]] },
+      { root: 48, tri: [0, 4, 7],  mel: [[0,84,2],[2,83,2],[4,81,2],[6,79,2],[8,76,2],[10,79,2],[12,84,4]] },
+      { root: 45, tri: [0, 3, 7],  mel: [[0,81,3],[3,79,1],[4,76,2],[6,79,2],[8,81,2],[10,84,2],[12,86,4]] },
+      { root: 41, tri: [0, 4, 7],  mel: [[0,84,2],[2,81,2],[4,77,2],[6,81,2],[8,84,2],[10,81,2],[12,79,4]] },
+      { root: 43, tri: [0, 4, 7],  mel: [[0,79,2],[2,81,2],[4,83,2],[6,86,2],[8,84,8]] }
+    ];
+    function init() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return false;
+      ac = new AC();
+      const comp = ac.createDynamicsCompressor();
+      master = ac.createGain(); master.gain.value = 0;
+      master.connect(comp); comp.connect(ac.destination);
+      noise = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+      const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      return true;
+    }
+    function note(type, freq, t, dur, vol, cutoff) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = type; o.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+      g.gain.exponentialRampToValueAtTime(vol * 0.5, t + dur * 0.5);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      let out = g;
+      if (cutoff) { const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = cutoff; g.connect(f); out = f; }
+      o.connect(g); out.connect(master); o.start(t); o.stop(t + dur + 0.02);
+    }
+    function hit(t, kind) {
+      if (kind === "kick") {
+        const o = ac.createOscillator(), g = ac.createGain();
+        o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.14);
+        g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+        o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.18);
+        return;
+      }
+      const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+      src.buffer = noise;
+      const snare = kind === "snare";
+      f.type = snare ? "bandpass" : "highpass"; f.frequency.value = snare ? 1800 : 7000;
+      const len = snare ? 0.12 : 0.04;
+      g.gain.setValueAtTime(snare ? 0.28 : 0.09, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      src.connect(f); f.connect(g); g.connect(master); src.start(t); src.stop(t + len + 0.02);
+    }
+    function play(s, t, sixteenth) {
+      const bar = BARS[Math.floor(s / 16) % BARS.length], st = s % 16;
+      bar.mel.forEach(([at, n, len]) => { if (at === st) note("square", hz(n), t, len * sixteenth * 0.92, 0.075, 3200); });
+      if (st % 4 === 0) note("triangle", hz(bar.root + (st % 8 === 4 ? 12 : 0)), t, sixteenth * 3, 0.32);
+      if (st === 6 || st === 14) note("triangle", hz(bar.root + 7), t, sixteenth * 1.6, 0.22);
+      if (st === 4 || st === 12) bar.tri.forEach(i => note("sine", hz(bar.root + 24 + i), t, sixteenth * 1.4, 0.05));
+      if (st === 0 || st === 8 || (fast && st === 10)) hit(t, "kick");
+      if (st === 4 || st === 12) hit(t, "snare");
+      if (st % 2 === 0 || fast) hit(t, "hat");
+    }
+    function tick() {
+      const sixteenth = 60 / (fast ? 152 : 136) / 4;
+      while (next < ac.currentTime + 0.12) { play(step, next, sixteenth); next += sixteenth; step++; }
+    }
+    function start() {
+      if (!ac && !init()) return;
+      if (ac.state === "suspended") ac.resume();
+      clearInterval(timer);
+      fast = false; step = 0; next = ac.currentTime + 0.06; playing = true;
+      master.gain.cancelScheduledValues(ac.currentTime);
+      master.gain.setTargetAtTime(muted ? 0 : VOL, ac.currentTime, 0.05);
+      timer = setInterval(tick, 25); tick();
+    }
+    function stop() {
+      if (!ac || !playing) return;
+      playing = false; clearInterval(timer);
+      master.gain.cancelScheduledValues(ac.currentTime);
+      master.gain.setTargetAtTime(0, ac.currentTime, 0.12);
+    }
+    function toggle() {
+      muted = !muted;
+      try { localStorage.setItem("word.music", muted ? "off" : "on"); } catch {}
+      if (ac && playing) master.gain.setTargetAtTime(muted ? 0 : VOL, ac.currentTime, 0.05);
+      return muted;
+    }
+    // Pause the sound while the tab is in the background.
+    document.addEventListener("visibilitychange", () => {
+      if (!ac) return;
+      if (document.hidden) ac.suspend(); else if (playing) ac.resume();
+    });
+    return { start, stop, toggle, setFast: v => { fast = v; }, isMuted: () => muted };
+  })();
+  function paintMusic() {
+    const off = Music.isMuted();
+    $("musicIntro").textContent = off ? "♪ 배경음악 꺼짐" : "♪ 배경음악 켜짐";
+    $("musicBtn").textContent = off ? "♪ 꺼짐" : "♪ 켜짐";
+    ["musicIntro", "musicBtn"].forEach(id => { $(id).classList.toggle("off", off); $(id).setAttribute("aria-pressed", String(!off)); });
+  }
+  ["musicIntro", "musicBtn"].forEach(id => $(id).addEventListener("click", () => { Music.toggle(); paintMusic(); }));
+  // keep a tap on the in-game button from popping a balloon underneath
+  $("musicBtn").addEventListener("pointerdown", e => e.stopPropagation());
+  paintMusic();
+
   // ---------- game ----------
   const PALETTE = [
     ["#ffd6a5", "#e8b47b", "#6b3f12"], ["#caffbf", "#9fdc92", "#245c1b"], ["#bde0fe", "#8fbde6", "#1f4a73"],
@@ -481,6 +598,7 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
     if (t >= nextSpawn && bubbles.length < maxOn) { spawn(); nextSpawn = t + (260 - elapsed * 110) + Math.random() * 120; }
     const sec = Math.ceil(remain / 1000);
     if ($("timeLeft").textContent !== clock(sec)) { $("timeLeft").textContent = clock(sec); $("timeBox").classList.toggle("low", sec <= 10); }
+    if (remain <= 20000) Music.setFast(true);
     if (remain <= 0) { finish(false); return; }
     raf = requestAnimationFrame(frame);
   }
@@ -550,6 +668,7 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
     $("timeLeft").textContent = clock(GAME_SECONDS); $("timeBox").classList.remove("low");
     $("result").hidden = true;
     show("game"); layoutMode(); renderChips(); drawClouds();
+    Music.start();
     countdown(3, () => {
       running = true; lastT = performance.now(); endAt = lastT + GAME_SECONDS * 1000; nextSpawn = lastT;
       for (let k = 0; k < 8; k++) spawn();
@@ -559,7 +678,7 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
   let finalScore = 0, submitted = false;
   function finish(cleared) {
     if (!running) return;
-    running = false; cancelAnimationFrame(raf);
+    running = false; cancelAnimationFrame(raf); Music.stop();
     const leftSec = Math.max(0, Math.ceil((endAt - performance.now()) / 1000));
     finalScore = score;
     setTimeout(() => {
@@ -580,7 +699,7 @@ h2 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
   $("startBtn").addEventListener("click", startGame);
   $("againBtn").addEventListener("click", startGame);
   $("homeBtn").addEventListener("click", () => { $("result").hidden = true; show("intro"); loadRanking(); });
-  $("quitBtn").addEventListener("click", () => { running = false; cancelAnimationFrame(raf); bubbles.forEach(b => b.el.remove()); bubbles = []; $("count").hidden = true; show("intro"); });
+  $("quitBtn").addEventListener("click", () => { running = false; cancelAnimationFrame(raf); Music.stop(); bubbles.forEach(b => b.el.remove()); bubbles = []; $("count").hidden = true; show("intro"); });
 
   // ---------- ranking registration ----------
   $("nickForm").addEventListener("submit", async e => {
